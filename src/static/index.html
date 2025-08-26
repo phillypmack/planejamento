@@ -1,0 +1,628 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Planejamento de Produção Web</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link rel="stylesheet" href="style.css">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+</head>
+
+<body class="bg-gray-900 text-white font-sans">
+    <div>v0.68</div>
+    <div id="loading-layer" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center">
+        <div class="text-center">
+            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mb-4">
+            </div>
+            <p class="text-xl text-purple-400 font-semibold">Carregando Sistema...</p>
+        </div>
+    </div>
+
+    <div class="container mx-auto p-4 md:p-8">
+        <header class="mb-8 text-center">
+            <h1 class="text-4xl font-bold text-purple-400">Otimizador de Planejamento de Produção</h1>
+            <p class="text-gray-400">Carregue suas planilhas, configure os parâmetros e gere sua programação otimizada.
+            </p>
+            <p id="loading-message" class="mt-4 text-lg text-yellow-400 hidden"><span class="loader"></span>
+                Processando... Por favor, aguarde.</p>
+
+        </header>
+
+        <div id="historico-alerta" class="hidden mb-6 p-4 bg-red-900 border border-red-700 rounded-lg">
+            <p class="text-red-200 text-center">
+                <span class="font-bold">Atenção:</span> Os dados que estão sendo exibidos são da última programação do
+                dia
+                <span id="historico-data" class="font-semibold"></span>
+            </p>
+        </div>
+
+
+
+        <section id="upload-section" class="mb-10 p-6 bg-gray-800 rounded-lg shadow-xl">
+            <h2 class="text-2xl font-semibold mb-6 text-purple-300 border-b-2 border-purple-300 pb-2">1. Carregar
+                Arquivos Excel (.xlsx)</h2>
+            <div class="grid md:grid-cols-3 gap-6">
+                <div class="upload-item">
+                    <label for="setup-file" class="block mb-2 text-sm font-medium text-gray-300">Planilha de
+                        Setup:</label>
+                    <input type="file" id="setup-file" accept=".xlsx"
+                        class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
+                    <p id="setup-status" class="mt-1 text-xs text-gray-500"></p>
+                </div>
+                <div class="upload-item">
+                    <label for="faltas-file" class="block mb-2 text-sm font-medium text-gray-300">Planilha de
+                        Faltas:</label>
+                    <input type="file" id="faltas-file" accept=".xlsx"
+                        class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
+                    <p id="faltas-status" class="mt-1 text-xs text-gray-500"></p>
+                </div>
+                <div class="upload-item">
+                    <label for="cadastro-moldes-file" class="block mb-2 text-sm font-medium text-gray-300">Cadastro de
+                        Moldes (Opcional):</label>
+                    <input type="file" id="cadastro-moldes-file" accept=".xlsx"
+                        class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
+                    <p id="cadastro-status" class="mt-1 text-xs text-gray-500"></p>
+                </div>
+            </div>
+        </section>
+
+        <section id="config-section" class="mb-10 p-6 bg-gray-800 rounded-lg shadow-xl">
+            <h2 class="text-2xl font-semibold mb-6 text-purple-300 border-b-2 border-purple-300 pb-2">2. Configurar
+                Parâmetros</h2>
+            <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
+                <div>
+                    <label for="braco-selecionado" class="block mb-2 text-sm font-medium text-gray-300">Braço
+                        Selecionado:</label>
+                    <select id="braco-selecionado"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <option value="Todos">Todos</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="dias-programacao" class="block mb-2 text-sm font-medium text-gray-300">Dias de
+                        Planejamento:</label>
+                    <input type="number" id="dias-programacao" value="50" min="1"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" />
+                </div>
+                <div>
+                    <label for="modo-sequenciamento" class="block mb-2 text-sm font-medium text-gray-300">Modo de
+                        Sequenciamento:</label>
+                    <select id="modo-sequenciamento"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <option value="Otimizado" selected>Otimizado</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="priorizacao-pedidos" class="block mb-2 text-sm font-medium text-gray-300">Priorização de
+                        Pedidos:</label>
+                    <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830"
+                        class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" />
+                </div>
+            </div>
+        </section>
+
+        <section id="action-section" class="mb-10 text-center">
+            <button id="ver-historico-btn"
+                class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 mr-4">
+                Ver Histórico
+            </button>
+            <button id="gerar-programacao-btn"
+                class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 mr-4">
+                Gerar Planejamento
+            </button>
+            <button id="enviar-sankhya-btn"
+                class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105 hidden">
+                Enviar para o Sankhya
+            </button>
+        </section>
+        <section id="graficos-section" class="hidden mb-10">
+            <h2 class="text-3xl font-semibold mb-6 text-purple-300 border-b-2 border-purple-300 pb-2">Gráficos do
+            	Planejamento </h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-green-400">Quantidade Planejada por Produto</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-green-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico foi desenvolvido para visualizar a distribuição da quantidade
+                                programada por produto, considerando os dados de setup, faltas e cadastro de moldes,
+                                visando otimizar O planejamento de produção.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoProdutos"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-blue-400">Evolução da Quantidade Planejada por Data
+                        </h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-blue-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra a evolução temporal da quantidade programada, permitindo
+                                visualizar a distribuição da produção ao longo dos dias e identificar possíveis
+                                picos ou vales no Planejamento.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoEvolucao"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-purple-400">Quantidade de Moldes por Braço</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-purple-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta a distribuição total de moldes por braço na primeira rodada,
+                                incluindo tanto os moldes em uso quanto os ociosos, permitindo visualizar a carga de
+                                trabalho de cada braço.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="w-3/4">
+                            <canvas id="graficoMoldesPorBraco"></canvas>
+                        </div>
+                        <div class="w-1/4 flex items-center justify-center">
+                            <div class="text-center">
+                                <div class="text-sm text-gray-400 mb-2">Total de Moldes</div>
+                                <div id="total-moldes" class="text-3xl font-bold text-purple-400">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Moldes Ociosos por Braço</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra a quantidade de moldes que ficarão ociosos em cada braço na
+                                primeira rodada, ajudando a identificar oportunidades de otimização na distribuição
+                                da produção.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoMoldesOciosos"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-green-400">Necessidade Sem Moldes</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-green-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta os produtos que possuem demanda mas não têm moldes
+                                cadastrados, auxiliando no planejamento de aquisição ou alocação de moldes para
+                                atender à produção necessária.
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 400px;">
+                        <canvas id="graficoNecessidadeSemMoldes"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Moldes Sem Demanda</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra os moldes que estão disponíveis mas não possuem demanda na
+                                programação atual, permitindo identificar oportunidades de realocação ou desativação
+                                de moldes ociosos.
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 400px;">
+                        <canvas id="graficoMoldesSemDemanda"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-yellow-400">Distribuição Total de Produtos por Braço
+                        </h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-yellow-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta a distribuição percentual da quantidade total de produtos
+                                programados por braço, permitindo visualizar o equilíbrio da carga de trabalho entre
+                                os diferentes braços de produção. Ele mostra a quantidade total de itens que cada
+                                braço vai produzir a partir da programação carregada.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoBracos"></canvas>
+                </div>
+                <div class="grid grid-cols-2 grid-rows-2 gap-4 mb-6">
+                    <div class="bg-gray-800 p-3 rounded-lg relative aspect-square flex flex-col">
+                        <div class="flex items-center justify-center relative mb-2 min-h-[3rem]">
+                            <h3 class="text-sm font-semibold text-red-400 text-center px-2">Tempo com Moldes Ociosos
+                            </h3>
+                            <div class="absolute right-1 top-0 group">
+                                <i class="fas fa-info-circle text-red-400 cursor-help text-sm"></i>
+                                <div
+                                    class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-1 w-48 p-2 bg-gray-700 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                    Tempo gasto com moldes ociosos na primeira rodada (30s por molde).
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-grow flex items-center justify-center">
+                            <div class="text-center">
+                                <div id="tempo-total" class="text-6xl font-bold text-red-400 mb-1">00:00</div>
+                                <p class="text-xs text-gray-400">Horas:Minutos</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-800 p-3 rounded-lg relative aspect-square flex flex-col">
+                        <div class="flex items-center justify-center relative mb-2 min-h-[3rem]">
+                            <h3 class="text-sm font-semibold text-red-400 text-center px-2">Tempo Total Diário</h3>
+                            <div class="absolute right-1 top-0 group">
+                                <i class="fas fa-info-circle text-red-400 cursor-help text-sm"></i>
+                                <div
+                                    class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-1 w-48 p-2 bg-gray-700 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                    Tempo total projetado para um dia completo (12 rodadas).
+                                </div>
+                            </div>
+                        </div>
+                        <div class="flex-grow flex items-center justify-center">
+                            <div class="text-center">
+                                <div id="tempo-total-dia" class="text-6xl font-bold text-red-400 mb-1">00:00</div>
+                                <p class="text-xs text-gray-400">Horas:Minutos</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+
+        </section>
+        <p id="loading-message" class="mt-4 text-lg text-yellow-400 hidden"><span class="loader"></span>
+            Processando... Por favor, aguarde.</p>
+        <p id="error-message" class="mt-4 text-lg text-red-400 hidden"></p>
+        </section>
+
+        <section id="graficos-section" class="hidden mb-10">
+            <h2 class="text-3xl font-semibold mb-6 text-purple-300 border-b-2 border-purple-300 pb-2">Gráficos da
+                Programação</h2>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-green-400">Quantidade Programada por Produto</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-green-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico foi desenvolvido para visualizar a distribuição da quantidade programada
+                                por produto, considerando os dados de setup, faltas e cadastro de moldes, visando
+                                otimizar a programação de produção.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoProdutos"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-blue-400">Evolução da Quantidade Programada por Data</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-blue-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra a evolução temporal da quantidade programada, permitindo visualizar
+                                a distribuição da produção ao longo dos dias e identificar possíveis picos ou vales na
+                                programação.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoEvolucao"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-purple-400">Quantidade de Moldes por Braço</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-purple-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta a distribuição total de moldes por braço na primeira rodada,
+                                incluindo tanto os moldes em uso quanto os ociosos, permitindo visualizar a carga de
+                                trabalho de cada braço.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-between">
+                        <div class="w-3/4">
+                            <canvas id="graficoMoldesPorBraco"></canvas>
+                        </div>
+                        <div class="w-1/4 flex items-center justify-center">
+                            <div class="text-center">
+                                <div class="text-sm text-gray-400 mb-2">Total de Moldes</div>
+                                <div id="total-moldes" class="text-3xl font-bold text-purple-400">0</div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Moldes Ociosos por Braço</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra a quantidade de moldes que ficarão ociosos em cada braço na primeira
+                                rodada, ajudando a identificar oportunidades de otimização na distribuição da produção.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoMoldesOciosos"></canvas>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-green-400">Necessidade Sem Moldes</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-green-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta os produtos que possuem demanda mas não têm moldes cadastrados,
+                                auxiliando no planejamento de aquisição ou alocação de moldes para atender à produção
+                                necessária.
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 400px;">
+                        <canvas id="graficoNecessidadeSemMoldes"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Moldes Sem Demanda</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="aabsolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico mostra os moldes que estão disponíveis mas não possuem demanda na
+                                programação atual, permitindo identificar oportunidades de realocação ou desativação de
+                                moldes ociosos.
+                            </div>
+                        </div>
+                    </div>
+                    <div style="height: 400px;">
+                        <canvas id="graficoMoldesSemDemanda"></canvas>
+                    </div>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-yellow-400">Distribuição Total de Produtos por Braço</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-yellow-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este gráfico apresenta a distribuição percentual da quantidade total de produtos
+                                programados por braço, permitindo visualizar o equilíbrio da carga de trabalho entre os
+                                diferentes braços de produção. Ele mostra a quantidade total de itens que cada braço vai
+                                produzir a partir da programação carregada.
+                            </div>
+                        </div>
+                    </div>
+                    <canvas id="graficoBracos"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Tempo Gasto com Moldes Ociosos</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este indicador mostra o tempo total que será gasto com moldes ociosos na primeira
+                                rodada, considerando 30 segundos por molde. Ajuda a identificar o impacto da ociosidade
+                                na eficiência da produção.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-center h-40">
+                        <div class="text-center">
+                            <div id="tempo-total" class="text-4xl font-bold text-red-400 mb-2">00:00</div>
+                            <p class="text-sm text-gray-400">Horas : Minutos</p>
+                        </div>
+                    </div>
+                </div>
+                <div class="bg-gray-800 p-4 rounded-lg relative">
+                    <div class="flex items-center justify-center gap-2 mb-4 relative">
+                        <h3 class="text-xl font-semibold text-red-400">Tempo Total por Dia</h3>
+                        <div class="absolute right-0 top-0 group">
+                            <i class="fas fa-info-circle text-red-400 cursor-help"></i>
+                            <div
+                                class="absolute right-full mr-2 bottom-1/2 transform -translate-x-1/2 bottom-full mb-2 w-64 p-2 bg-gray-700 text-white text-sm rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 z-10">
+                                Este indicador projeta o tempo total que será gasto com moldes ociosos ao longo de um
+                                dia completo (12 rodadas), permitindo avaliar o impacto da ociosidade na capacidade
+                                produtiva diária.
+                            </div>
+                        </div>
+                    </div>
+                    <div class="flex items-center justify-center h-40">
+                        <div class="text-center">
+                            <div id="tempo-total-dia" class="text-4xl font-bold text-red-400 mb-2">00:00</div>
+                            <p class="text-sm text-gray-400">Horas : Minutos</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section id="results-section" class="hidden">
+            <h2 class="text-3xl font-semibold mb-6 text-purple-300 border-b-2 border-purple-300 pb-2">3. Resultados da
+                Programação</h2>
+
+            <div class="bg-gray-800 p-6 rounded-lg mb-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-purple-400">Resumo do Planejamento</h3>
+                    <div class="flex items-center space-x-4">
+                        <label for="filtro-braco" class="text-sm font-medium text-gray-300">Filtrar por Braço:</label>
+                        <select id="filtro-braco"
+                            class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 p-2">
+                            <option value="todos">Todos</option>
+                            <option value="1">Braço 1</option>
+                            <option value="2">Braço 2</option>
+                            <option value="3">Braço 3</option>
+                            <option value="4">Braço 4</option>
+                            <option value="5">Braço 5</option>
+                            <option value="6">Braço 6</option>
+                        </select>
+                        <a id="download-resumo" href="#"
+                            class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Download
+                            Resumo (.xlsx)</a>
+                    </div>
+                </div>
+                <div class="overflow-x-auto overflow-y-auto max-h-96">
+                    <table id="tabela-pivotada" class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-700">
+                            <tr>
+                                <th scope="col" class="px-4 py-3 sticky left-0 bg-gray-700 z-20">Braço</th>
+                                <th scope="col" class="px-4 py-3 sticky left-[120px] bg-gray-700 z-20">Produto</th>
+                                <th scope="col" class="px-4 py-3 sticky left-[320px] bg-gray-700 z-20">Cor</th>
+                                <th scope="col" class="px-4 py-3 sticky left-[420px] bg-gray-700 z-20">Qtd. Moldes</th>
+                                <th scope="col" class="px-4 py-3">RD 1</th>
+                                <th scope="col" class="px-4 py-3">RD 2</th>
+                                <th scope="col" class="px-4 py-3">RD 3</th>
+                                <th scope="col" class="px-4 py-3">RD 4</th>
+                                <th scope="col" class="px-4 py-3">RD 5</th>
+                                <th scope="col" class="px-4 py-3">RD 6</th>
+                                <th scope="col" class="px-4 py-3">RD 7</th>
+                                <th scope="col" class="px-4 py-3">RD 8</th>
+                                <th scope="col" class="px-4 py-3">RD 9</th>
+                                <th scope="col" class="px-4 py-3">RD 10</th>
+                                <th scope="col" class="px-4 py-3">RD 11</th>
+                                <th scope="col" class="px-4 py-3">RD 12</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="no-programacao" class="text-center text-gray-500 py-4 hidden">Nenhum Planejamento gerada.</p>
+            </div>
+
+            <div id="programacao-gerada-container" class="mb-8 p-6 bg-gray-800 rounded-lg shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-green-400">PLanejamento Gerado</h3>
+                    <a id="download-programacao" href="#"
+                        class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Download
+                        Planejamento (.xlsx)</a>
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table id="programacao-table" class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-700">
+                            <tr>
+                                <th scope="col" class="px-4 py-3">Rodada</th>
+                                <th scope="col" class="px-4 py-3">Data Prevista</th>
+                                <th scope="col" class="px-4 py-3">Braço</th>
+                                <th scope="col" class="px-4 py-3">Produto</th>
+                                <th scope="col" class="px-4 py-3">Cor</th>
+                                <th scope="col" class="px-4 py-3">Pedido</th>
+                                <th scope="col" class="px-4 py-3">CODPROD</th>
+                                <th scope="col" class="px-4 py-3">Qtd. Moldes</th>
+                                <th scope="col" class="px-4 py-3">Qtd. Programada</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="no-programacao" class="text-center text-gray-500 py-4 hidden">Nenhuma Planejamento gerado.</p>
+            </div>
+
+
+
+            <div id="moldes-ociosos-container" class="mb-8 p-6 bg-gray-800 rounded-lg shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-yellow-400">Moldes Ociosos</h3>
+                    <a id="download-ociosos" href="#"
+                        class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Download
+                        Moldes Ociosos (.xlsx)</a>
+                </div>
+                <div class="overflow-x-auto max-h-72">
+                    <table id="ociosos-table" class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-700">
+                            <tr>
+                                <th scope="col" class="px-4 py-3">Nome</th>
+                                <th scope="col" class="px-4 py-3">Quantidade</th>
+                                <th scope="col" class="px-4 py-3">Rodada Ociosa</th>
+                                <th scope="col" class="px-4 py-3">Braço</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="no-ociosos" class="text-center text-gray-500 py-4 hidden">Nenhum molde ocioso encontrado.</p>
+            </div>
+
+            <div id="necessidade-sem-moldes-container" class="p-6 bg-gray-800 rounded-lg shadow-xl">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-red-400">Necessidade de Produtos Sem Moldes Configurados</h3>
+                    <a id="download-necessidade" href="#"
+                        class="hidden bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg text-sm">Download
+                        Necessidade (.xlsx)</a>
+                </div>
+                <div class="overflow-x-auto max-h-72">
+                    <table id="necessidade-table" class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-700">
+                            <tr>
+                                <th scope="col" class="px-4 py-3">Nome</th>
+                                <th scope="col" class="px-4 py-3">Quantidade Faltante</th>
+                                <th scope="col" class="px-4 py-3">Qtd. Moldes Cadastrados</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                        </tbody>
+                    </table>
+                </div>
+                <p id="no-necessidade" class="text-center text-gray-500 py-4 hidden">Nenhuma necessidade de produtos sem
+                    moldes encontrada.</p>
+            </div>
+
+            <div id="historico-section" class="mb-8">
+                <h2 class="text-2xl font-bold text-purple-400 mb-4">Histórico de Planejamento</h2>
+                <div class="bg-gray-800 rounded-lg p-4">
+                    <div id="historico-lista" class="space-y-2">
+                    </div>
+                </div>
+            </div>
+        </section>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+
+</html>
