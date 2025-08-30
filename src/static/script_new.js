@@ -57,6 +57,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Compare history
         document.getElementById('comparar-btn').addEventListener('click', compararProgramacoes);
+
+        // Cadastros
+        document.getElementById('adicionar-motivo-btn').addEventListener('click', adicionarMotivo);
     }
 
     function showSection(sectionName) {
@@ -67,6 +70,14 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Show selected section
         document.getElementById(`${sectionName}-section`).classList.remove('hidden');
+
+        // Carrega dados específicos da seção quando ela é exibida
+        if (sectionName === 'analise') {
+            loadAtrasosHistorico();
+        }
+        if (sectionName === 'cadastros') {
+            loadMotivosOcorrencia();
+        }
     }
 
     function updateActiveNavItem(activeItem) {
@@ -1398,6 +1409,146 @@ document.addEventListener("DOMContentLoaded", () => {
             loadHistorico();
             loadDashboardData(); // Atualiza KPIs, histórico recente e Gantt de comparação
     
+        } catch (error) {
+            alert(`Erro: ${error.message}`);
+        } finally {
+            hideLoading();
+        }
+    };
+
+    async function loadAtrasosHistorico() {
+        try {
+            // Fetch both delay history and reasons in parallel
+            const [atrasosResponse, motivosResponse] = await Promise.all([
+                fetch('/api/gantt/historico_atrasos'),
+                fetch('/api/gantt/motivos/listar')
+            ]);
+    
+            const atrasosResult = await atrasosResponse.json();
+            const motivosResult = await motivosResponse.json();
+    
+            const container = document.getElementById('historico-atrasos-container');
+            container.innerHTML = '';
+    
+            if (atrasosResponse.ok && atrasosResult.historico_atrasos && atrasosResult.historico_atrasos.length > 0) {
+                const motivosOptions = motivosResponse.ok 
+                    ? motivosResult.motivos.map(m => `<option value="${m.motivo}">${m.motivo}</option>`).join('')
+                    : '';
+    
+                const table = document.createElement('table');
+                table.className = 'min-w-full text-sm text-left text-gray-300';
+                
+                table.innerHTML = `
+                    <thead class="text-xs text-gray-200 uppercase bg-gray-600">
+                        <tr>
+                            <th class="px-4 py-3">Data da Análise</th>
+                            <th class="px-4 py-3">Pedido</th>
+                            <th class="px-4 py-3">Cliente</th>
+                            <th class="px-4 py-3">Dias de Atraso</th>
+                            <th class="px-4 py-3">Motivo da Ocorrência</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        ${atrasosResult.historico_atrasos.map(item => `
+                            <tr class="border-b border-gray-700 hover:bg-gray-700">
+                                <td class="px-4 py-2">${new Date(item.timestamp_analise).toLocaleString('pt-BR')}</td>
+                                <td class="px-4 py-2">${item.pedido}</td>
+                                <td class="px-4 py-2">${item.cliente}</td>
+                                <td class="px-4 py-2 text-red-400 font-semibold">${item.dias_atraso}</td>
+                                <td class="px-4 py-2">
+                                    ${item.motivo_atraso 
+                                        ? `<span class="font-semibold text-yellow-400">${item.motivo_atraso}</span>`
+                                        : `
+                                        <div class="flex items-center space-x-2">
+                                            <select class="motivo-select bg-gray-700 text-white text-xs rounded p-1" data-atraso-id="${item._id}">
+                                                <option value="">Selecione...</option>
+                                                ${motivosOptions}
+                                            </select>
+                                            <button class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-xs rounded" onclick="atribuirMotivo(this)">Salvar</button>
+                                        </div>
+                                        `
+                                    }
+                                </td>
+                            </tr>
+                        `).join('')}
+                    </tbody>
+                `;
+                container.appendChild(table);
+            } else {
+                container.innerHTML = '<p class="text-gray-400">Nenhum histórico de atrasos encontrado.</p>';
+            }
+        } catch (error) {
+            console.error('Erro ao carregar histórico de atrasos:', error);
+            document.getElementById('historico-atrasos-container').innerHTML = '<p class="text-red-400">Erro ao carregar histórico de atrasos.</p>';
+        }
+    }
+
+    async function loadMotivosOcorrencia() {
+        try {
+            const response = await fetch('/api/gantt/motivos/listar');
+            const result = await response.json();
+            const tbody = document.getElementById('motivos-tabela-body');
+            tbody.innerHTML = '';
+
+            if (response.ok && result.motivos && result.motivos.length > 0) {
+                result.motivos.forEach(motivo => {
+                    const row = tbody.insertRow();
+                    row.innerHTML = `
+                        <td class="px-4 py-2">${motivo.motivo}</td>
+                        <td class="px-4 py-2 text-right">
+                            <button class="text-red-500 hover:text-red-400" onclick="excluirMotivo('${motivo._id}')">
+                                <i class="fas fa-trash-alt"></i>
+                            </button>
+                        </td>
+                    `;
+                });
+            } else {
+                tbody.innerHTML = '<tr><td colspan="2" class="px-4 py-2 text-gray-400 text-center">Nenhum motivo cadastrado.</td></tr>';
+            }
+        } catch (error) {
+            console.error('Erro ao carregar motivos:', error);
+            document.getElementById('motivos-tabela-body').innerHTML = '<tr><td colspan="2" class="px-4 py-2 text-red-400 text-center">Erro ao carregar motivos.</td></tr>';
+        }
+    }
+
+    async function adicionarMotivo() {
+        const input = document.getElementById('novo-motivo-input');
+        const motivoText = input.value.trim();
+        if (!motivoText) { alert('Por favor, digite um motivo.'); return; }
+        try {
+            const response = await fetch('/api/gantt/motivos/adicionar', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: motivoText }) });
+            const result = await response.json();
+            if (!response.ok) { throw new Error(result.error || 'Erro ao adicionar motivo'); }
+            alert(result.message);
+            input.value = '';
+            loadMotivosOcorrencia();
+        } catch (error) { alert(`Erro: ${error.message}`); }
+    }
+
+    window.excluirMotivo = async function(id) {
+        if (!confirm('Tem certeza que deseja excluir este motivo?')) { return; }
+        try {
+            const response = await fetch(`/api/gantt/motivos/excluir/${id}`, { method: 'DELETE' });
+            const result = await response.json();
+            if (!response.ok) { throw new Error(result.error || 'Erro ao excluir motivo'); }
+            alert(result.message);
+            loadMotivosOcorrencia();
+        } catch (error) { alert(`Erro: ${error.message}`); }
+    };
+
+    window.atribuirMotivo = async function(buttonElement) {
+        const selectElement = buttonElement.previousElementSibling;
+        const atrasoId = selectElement.dataset.atrasoId;
+        const motivo = selectElement.value;
+        if (!motivo) { alert('Por favor, selecione um motivo.'); return; }
+        showLoading();
+        try {
+            const response = await fetch(`/api/gantt/atrasos/atribuir_motivo/${atrasoId}`, { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ motivo: motivo }) });
+            const result = await response.json();
+            if (!response.ok) { throw new Error(result.error || 'Erro ao atribuir motivo'); }
+            alert(result.message);
+            const cell = buttonElement.parentElement.parentElement;
+            cell.innerHTML = `<span class="font-semibold text-yellow-400">${motivo}</span>`;
         } catch (error) {
             alert(`Erro: ${error.message}`);
         } finally {

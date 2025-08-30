@@ -18,6 +18,8 @@ MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client.planejamento_db
 programacao_results_collection = db.programacao_results
+atrasos_historico_collection = db.atrasos_historico
+motivos_ocorrencia_collection = db.motivos_ocorrencia
 
 # Sankhya DB Connection Details
 SANKHYA_USER = os.getenv("SANKHYA_USER")
@@ -512,6 +514,26 @@ def gantt_comparacao_atrasos():
                 "dias_atraso": item["diferenca_dias"]
             })
 
+        # Salvar histórico de atrasos no banco
+        if table_data:
+            atrasos_para_salvar = []
+            timestamp_analise = datetime.now()
+            prog_recente_id = prog_recente.get("_id")
+            prog_anterior_id = prog_anterior.get("_id")
+
+            for item in table_data:
+                atrasos_para_salvar.append({
+                    "timestamp_analise": timestamp_analise,
+                    "pedido": item["pedido"],
+                    "cliente": item["cliente"],
+                    "dias_atraso": item["dias_atraso"],
+                    "programacao_recente_id": prog_recente_id,
+                    "programacao_anterior_id": prog_anterior_id
+                })
+            
+            if atrasos_para_salvar:
+                atrasos_historico_collection.insert_many(atrasos_para_salvar)
+
         return jsonify({"gantt_data": gantt_data, "table_data": table_data}), 200
 
     except Exception as e:
@@ -535,6 +557,101 @@ def excluir_planejamento(programacao_id):
             
     except Exception as e:
         return jsonify({"error": f"Erro ao excluir planejamento: {str(e)}"}), 500
+
+@gantt_bp.route("/historico_atrasos", methods=["GET"])
+def get_historico_atrasos():
+    """
+    Retorna o histórico de atrasos salvos.
+    """
+    try:
+        # Limita aos 100 registros mais recentes para não sobrecarregar
+        historico = list(atrasos_historico_collection.find().sort("timestamp_analise", DESCENDING).limit(100))
+        
+        # Converter ObjectId e datetime para string para JSON
+        for item in historico:
+            item["_id"] = str(item["_id"])
+            if "programacao_recente_id" in item and item["programacao_recente_id"]:
+                item["programacao_recente_id"] = str(item["programacao_recente_id"])
+            if "programacao_anterior_id" in item and item["programacao_anterior_id"]:
+                item["programacao_anterior_id"] = str(item["programacao_anterior_id"])
+
+        return jsonify({"historico_atrasos": historico}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erro ao obter histórico de atrasos: {str(e)}"}), 500
+
+@gantt_bp.route("/motivos/listar", methods=["GET"])
+def listar_motivos():
+    """
+    Lista todos os motivos de ocorrência cadastrados.
+    """
+    try:
+        motivos = list(motivos_ocorrencia_collection.find().sort("motivo", 1))
+        for motivo in motivos:
+            motivo["_id"] = str(motivo["_id"])
+        return jsonify({"motivos": motivos}), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro ao listar motivos: {str(e)}"}), 500
+
+@gantt_bp.route("/motivos/adicionar", methods=["POST"])
+def adicionar_motivo():
+    """
+    Adiciona um novo motivo de ocorrência.
+    """
+    try:
+        data = request.get_json()
+        novo_motivo = data.get("motivo")
+        if not novo_motivo:
+            return jsonify({"error": "O texto do motivo é obrigatório"}), 400
+        
+        if motivos_ocorrencia_collection.find_one({"motivo": novo_motivo}):
+            return jsonify({"error": "Este motivo já existe"}), 409
+
+        result = motivos_ocorrencia_collection.insert_one({
+            "motivo": novo_motivo,
+            "timestamp": datetime.now()
+        })
+        
+        return jsonify({"message": "Motivo adicionado com sucesso", "id": str(result.inserted_id)}), 201
+    except Exception as e:
+        return jsonify({"error": f"Erro ao adicionar motivo: {str(e)}"}), 500
+
+@gantt_bp.route("/motivos/excluir/<motivo_id>", methods=["DELETE"])
+def excluir_motivo(motivo_id):
+    """
+    Exclui um motivo de ocorrência pelo seu ID.
+    """
+    try:
+        if not ObjectId.is_valid(motivo_id):
+            return jsonify({"error": "ID de motivo inválido"}), 400
+
+        result = motivos_ocorrencia_collection.delete_one({"_id": ObjectId(motivo_id)})
+        
+        if result.deleted_count == 1:
+            return jsonify({"message": "Motivo excluído com sucesso"}), 200
+        else:
+            return jsonify({"error": "Motivo não encontrado"}), 404
+    except Exception as e:
+        return jsonify({"error": f"Erro ao excluir motivo: {str(e)}"}), 500
+
+@gantt_bp.route("/atrasos/atribuir_motivo/<atraso_id>", methods=["PUT"])
+def atribuir_motivo_atraso(atraso_id):
+    try:
+        data = request.get_json()
+        motivo = data.get("motivo")
+        if not ObjectId.is_valid(atraso_id) or not motivo:
+            return jsonify({"error": "Dados inválidos"}), 400
+
+        result = atrasos_historico_collection.update_one(
+            {"_id": ObjectId(atraso_id)},
+            {"$set": {"motivo_atraso": motivo, "motivo_atribuido_em": datetime.now()}}
+        )
+        if result.matched_count == 1:
+            return jsonify({"message": "Motivo atribuído com sucesso"}), 200
+        else:
+            return jsonify({"error": "Registro de atraso não encontrado"}), 404
+    except Exception as e:
+        return jsonify({"error": f"Erro ao atribuir motivo: {str(e)}"}), 500
 
 @gantt_bp.route("/obter_ultimo_planejamento", methods=["GET"])
 def obter_ultimo_planejamento():

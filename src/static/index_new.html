@@ -152,6 +152,10 @@
                     <i class="fas fa-calendar-alt mr-3"></i>
                     <span>Gráficos Gantt</span>
                 </a>
+                <a href="#" class="nav-item flex items-center p-3 rounded-lg" data-section="cadastros">
+                    <i class="fas fa-edit mr-3"></i>
+                    <span>Cadastros</span>
+                </a>
             </nav>
         </div>
         
@@ -522,6 +526,14 @@
                 <h3 class="text-xl font-semibold mb-4">Resultado da Comparação</h3>
                 <div id="comparison-content"></div>
             </div>
+
+            <!-- Histórico de Atrasos -->
+            <div class="mt-8 bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-purple-400 mb-4">Histórico de Atrasos de Pedidos</h3>
+                <div id="historico-atrasos-container" class="overflow-x-auto max-h-96">
+                    <p class="text-gray-400">Carregando histórico de atrasos...</p>
+                </div>
+            </div>
         </div>
 
         <!-- Relatórios Section -->
@@ -568,6 +580,40 @@
                 <div class="bg-gray-800 rounded-lg p-6">
                     <h3 class="text-xl font-semibold mb-4">Previsão de Conclusão de Pedidos</h3>
                     <div id="gantt-pedidos-full" class="gantt-container"></div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Cadastros Section -->
+        <div id="cadastros-section" class="section hidden p-8">
+            <div class="mb-8">
+                <h2 class="text-3xl font-bold text-purple-400 mb-2">Cadastros Gerais</h2>
+                <p class="text-gray-400">Gerencie os dados mestres do sistema</p>
+            </div>
+
+            <!-- Cadastro de Motivos de Ocorrência -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-purple-400 mb-4">Motivos de Ocorrência de Atraso</h3>
+                
+                <!-- Formulário para adicionar novo motivo -->
+                <div class="mb-6">
+                    <div class="flex space-x-2">
+                        <input type="text" id="novo-motivo-input" placeholder="Digite o novo motivo..." class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
+                        <button id="adicionar-motivo-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
+                            <i class="fas fa-plus mr-2"></i>
+                            Adicionar
+                        </button>
+                    </div>
+                </div>
+
+                <!-- Tabela de motivos existentes -->
+                <div class="overflow-x-auto max-h-96">
+                    <table class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-600">
+                            <tr><th class="px-4 py-3">Motivo da Ocorrência</th><th class="px-4 py-3 text-right">Ações</th></tr>
+                        </thead>
+                        <tbody id="motivos-tabela-body"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
