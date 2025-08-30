@@ -15,8 +15,45 @@
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
+        /* Professional Color Palette */
+        :root {
+            --color-bg-dark: #2C3E50;
+            --color-bg-light: #34495E;
+            --color-text-main: #ECF0F1;
+            --color-text-secondary: #BDC3C7;
+            --color-accent: #3498DB;
+            --color-accent-dark: #2980B9;
+            --color-success: #2ECC71;
+            --color-success-dark: #27AE60;
+            --color-warning: #F1C40F;
+            --color-error: #E74C3C;
+            --color-error-dark: #C0392B;
+            --color-gantt-order: #3498DB;
+            --color-gantt-stock: #2ECC71;
+            --color-gantt-old: #F39C12; /* Orange */
+            --color-gantt-new: #E74C3C; /* Red */
+        }
+
+        body {
+            background-color: var(--color-bg-dark);
+            color: var(--color-text-main);
+        }
+
+        .bg-primary-light { background-color: var(--color-bg-light); }
+        .text-secondary { color: var(--color-text-secondary); }
+        .text-accent { color: var(--color-accent); }
+        .border-accent { border-color: var(--color-accent); }
+        .bg-accent { background-color: var(--color-accent); }
+        .hover\:bg-accent-dark:hover { background-color: var(--color-accent-dark); }
+        .bg-success { background-color: var(--color-success); }
+        .hover\:bg-success-dark:hover { background-color: var(--color-success-dark); }
+        .bg-error { background-color: var(--color-error); }
+        .hover\:bg-error-dark:hover { background-color: var(--color-error-dark); }
+        .bg-warning { background-color: var(--color-warning); }
+
         .sidebar {
             transition: transform 0.3s ease-in-out;
+            background-color: var(--color-bg-light);
         }
         .sidebar-collapsed {
             transform: translateX(-100%);
@@ -25,71 +62,69 @@
             margin-left: 0;
         }
         .highlight-produto {
-            background-color: rgba(147, 51, 234, 0.3) !important;
+            background-color: rgba(52, 152, 219, 0.3) !important;
         }
         .gantt-container {
             overflow-x: auto;
             max-height: 500px;
         }
-        .kpi-card {
-            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        /* Remove old KPI card gradients and apply new solid colors */
+        .kpi-card, .kpi-card-blue {
+            background: var(--color-accent);
         }
         .kpi-card-green {
-            background: linear-gradient(135deg, #11998e 0%, #38ef7d 100%);
+            background: var(--color-success);
         }
         .kpi-card-red {
-            background: linear-gradient(135deg, #ff416c 0%, #ff4b2b 100%);
+            background: var(--color-error);
         }
         .kpi-card-yellow {
-            background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
-        }
-        .kpi-card-blue {
-            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+            background: var(--color-warning);
         }
         .kpi-card-teal {
-            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+            background: #1ABC9C; /* Turquoise for variety */
         }
         .nav-item {
             transition: all 0.3s ease;
         }
         .nav-item:hover {
-            background-color: rgba(147, 51, 234, 0.2);
+            background-color: rgba(52, 152, 219, 0.1);
             transform: translateX(4px);
         }
         .nav-item.active {
-            background-color: rgba(147, 51, 234, 0.3);
-            border-right: 4px solid #9333ea;
+            background-color: rgba(52, 152, 219, 0.2);
+            border-right: 4px solid var(--color-accent);
         }
         .tab-button {
             transition: all 0.3s ease;
         }
         .tab-button.active {
-            background-color: #9333ea;
+            background-color: var(--color-accent);
             color: white;
         }
         .step-indicator {
             transition: all 0.3s ease;
         }
         .step-indicator.active {
-            background-color: #9333ea;
+            background-color: var(--color-accent);
             color: white;
         }
         .step-indicator.completed {
-            background-color: #10b981;
+            background-color: var(--color-success);
             color: white;
         }
         /* Custom Gantt Bar Colors */
         .gantt .bar-order .bar {
-            fill: #3b82f6; /* Blue-500 */
+            fill: var(--color-gantt-order);
         }
         .gantt .bar-stock .bar {
-            fill: #10b981; /* Green-500 */
+            fill: var(--color-gantt-stock);
         }
         .gantt .bar-comparison-old .bar {
-            fill: #f59e0b; /* amber-500 */
+            fill: var(--color-gantt-old);
         }
         .gantt .bar-comparison-new .bar {
-            fill: #ef4444; /* red-500 */
+            fill: var(--color-gantt-new);
         }
         .gantt .bar-order .bar-progress,
         .gantt .bar-stock .bar-progress,
@@ -98,37 +133,41 @@
             /* Make progress bar darker for contrast */
             fill: rgba(0, 0, 0, 0.25);
         }
-        /* Custom styles for Gantt header to match dark theme and be sticky */
-        .gantt .grid-header {
-            /* A propriedade position:sticky não funciona de forma confiável em elementos <g> do SVG.
-               O posicionamento agora é controlado via JavaScript. Este estilo define a cor de fundo. */
-            fill: #1f2937; /* Cor de fundo para esconder o conteúdo que rola por baixo */
-            stroke: #374151; /* Cor da borda */
+        /* Forçar cores claras no header do Gantt */
+        .gantt .grid-header text {
+            fill: var(--color-text-main) !important; /* Datas e meses */
+            font-weight: 500;
         }
 
-        .gantt .grid-header .lower-text,
+        /* Diferenciar meses (linha superior) */
         .gantt .grid-header .upper-text {
-            fill: #e5e7eb; /* Cor de texto clara (gray-200) para bom contraste */
-            font-weight: 500;
+            fill: var(--color-text-main) !important; /* Meses */
+            font-size: 14px;
+        }
+
+        /* Diferenciar dias (linha inferior) */
+        .gantt .grid-header .lower-text {
+            fill: var(--color-text-secondary) !important; /* Dias */
+            font-size: 12px;
         }
     </style>
 </head>
 
-<body class="bg-gray-900 text-white font-sans">
+<body class="font-sans">
     <!-- Loading Layer -->
-    <div id="loading-layer" class="fixed inset-0 bg-gray-900 bg-opacity-90 z-50 flex items-center justify-center hidden">
+    <div id="loading-layer" class="fixed inset-0 bg-primary-dark bg-opacity-90 z-50 flex items-center justify-center hidden">
         <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-purple-500 mb-4"></div>
-            <p class="text-xl text-purple-400 font-semibold">Processando...</p>
+            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-accent mb-4"></div>
+            <p class="text-xl text-accent font-semibold">Processando...</p>
         </div>
     </div>
 
     <!-- Sidebar -->
-    <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 bg-gray-800 shadow-lg z-40">
+    <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 shadow-lg z-40">
         <div class="p-6">
             <div class="flex items-center mb-8">
-                <i class="fas fa-industry text-purple-400 text-2xl mr-3"></i>
-                <h1 class="text-xl font-bold text-purple-400">MRP/PCP</h1>
+                <i class="fas fa-industry text-accent text-2xl mr-3"></i>
+                <h1 class="text-xl font-bold text-accent">MRP/PCP</h1>
             </div>
             
             <nav class="space-y-2">
@@ -160,14 +199,14 @@
         </div>
         
         <div class="absolute bottom-4 left-4 right-4">
-            <div class="text-xs text-gray-400 text-center">
+            <div class="text-xs text-secondary text-center">
                 v1.0 - Sistema MRP/PCP
             </div>
         </div>
     </div>
 
     <!-- Toggle Button -->
-    <button id="sidebar-toggle" class="fixed top-4 left-4 z-50 bg-purple-600 hover:bg-purple-700 text-white p-2 rounded-lg">
+    <button id="sidebar-toggle" class="fixed top-4 left-4 z-50 bg-accent hover:bg-accent-dark text-white p-2 rounded-lg">
         <i class="fas fa-bars"></i>
     </button>
 
@@ -177,8 +216,8 @@
         <!-- Dashboard Section -->
         <div id="dashboard-section" class="section p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Visão Geral do Sistema</h2>
-                <p class="text-gray-400">Acompanhe os principais indicadores do seu planejamento de produção</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Visão Geral do Sistema</h2>
+                <p class="text-secondary">Acompanhe os principais indicadores do seu planejamento de produção</p>
             </div>
 
             <!-- KPI Cards -->
@@ -244,11 +283,26 @@
                 </div>
             </div>
 
+            <!-- Order Search -->
+            <div class="bg-primary-light rounded-lg p-6 mb-8">
+                <h3 class="text-xl font-semibold text-accent mb-4">Consultar Pedido</h3>
+                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-4">
+                    <input type="text" id="pedido-search-input" placeholder="Digite o número do pedido" class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                    <button id="pedido-search-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center">
+                        <i class="fas fa-search mr-2"></i>
+                        Pesquisar
+                    </button>
+                </div>
+                <div id="pedido-search-results-container" class="hidden mt-4">
+                    <!-- Search results will be displayed here -->
+                </div>
+            </div>
+
             <!-- Gantt Comparison -->
-            <div class="bg-gray-800 rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-purple-400 mb-4">Análise de Atrasos (Últimas 2 Programações)</h3>
+            <div class="bg-primary-light rounded-lg p-6 mb-8">
+                <h3 class="text-xl font-semibold text-accent mb-4">Análise de Atrasos (Últimas 2 Programações)</h3>
                 <div id="gantt-comparacao-atrasos" class="gantt-container">
-                    <p class="text-gray-400">Carregando análise de atrasos...</p>
+                    <p class="text-secondary">Carregando análise de atrasos...</p>
                 </div>
                 <!-- Tabela de detalhes dos atrasos -->
                 <div id="tabela-comparacao-atrasos" class="mt-6 hidden">
@@ -257,10 +311,10 @@
             </div>
 
             <!-- Recent History -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <h3 class="text-xl font-semibold text-purple-400 mb-4">Histórico Recente</h3>
+            <div class="bg-primary-light rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-accent mb-4">Histórico Recente</h3>
                 <div id="historico-recente" class="space-y-3">
-                    <p class="text-gray-400">Carregando histórico...</p>
+                    <p class="text-secondary">Carregando histórico...</p>
                 </div>
             </div>
         </div>
@@ -269,11 +323,11 @@
         <div id="planejamento-section" class="section hidden p-8">
             <div class="mb-8 flex justify-between items-center">
                 <div>
-                    <h2 class="text-3xl font-bold text-purple-400 mb-2">Novo Planejamento</h2>
-                    <p class="text-gray-400">Siga os passos para gerar sua programação otimizada</p>
+                    <h2 class="text-3xl font-bold text-accent mb-2">Novo Planejamento</h2>
+                    <p class="text-secondary">Siga os passos para gerar sua programação otimizada</p>
                 </div>
                 <div>
-                    <button onclick="carregarUltimoPlanejamento()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                    <button onclick="carregarUltimoPlanejamento()" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center">
                         <i class="fas fa-eye mr-2"></i>
                         Mostrar Último Planejamento
                     </button>
@@ -283,76 +337,76 @@
             <!-- Step Indicator -->
             <div class="flex items-center justify-center mb-8">
                 <div class="flex items-center space-x-4">
-                    <div class="step-indicator active flex items-center justify-center w-10 h-10 rounded-full bg-gray-600 text-white font-semibold">1</div>
-                    <div class="w-16 h-1 bg-gray-600"></div>
-                    <div class="step-indicator flex items-center justify-center w-10 h-10 rounded-full bg-gray-600 text-white font-semibold">2</div>
-                    <div class="w-16 h-1 bg-gray-600"></div>
-                    <div class="step-indicator flex items-center justify-center w-10 h-10 rounded-full bg-gray-600 text-white font-semibold">3</div>
+                    <div class="step-indicator active flex items-center justify-center w-10 h-10 rounded-full bg-primary-light text-white font-semibold">1</div>
+                    <div class="w-16 h-1 bg-primary-light"></div>
+                    <div class="step-indicator flex items-center justify-center w-10 h-10 rounded-full bg-primary-light text-white font-semibold">2</div>
+                    <div class="w-16 h-1 bg-primary-light"></div>
+                    <div class="step-indicator flex items-center justify-center w-10 h-10 rounded-full bg-primary-light text-white font-semibold">3</div>
                 </div>
             </div>
 
             <!-- Step 1: Upload Files -->
-            <div id="step-1" class="step-content bg-gray-800 rounded-lg p-6 mb-6">
-                <h3 class="text-xl font-semibold text-purple-300 mb-4">Passo 1: Carregar Dados</h3>
+            <div id="step-1" class="step-content bg-primary-light rounded-lg p-6 mb-6">
+                <h3 class="text-xl font-semibold text-accent mb-4">Passo 1: Carregar Dados</h3>
                 <div class="grid md:grid-cols-3 gap-6">
                     <div class="upload-item">
-                        <label for="setup-file" class="block mb-2 text-sm font-medium text-gray-300">Planilha de Setup:</label>
-                        <input type="file" id="setup-file" accept=".xlsx" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
-                        <p id="setup-status" class="mt-1 text-xs text-gray-500"></p>
+                        <label for="setup-file" class="block mb-2 text-sm font-medium text-main">Planilha de Setup:</label>
+                        <input type="file" id="setup-file" accept=".xlsx" class="block w-full text-sm text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent-dark" />
+                        <p id="setup-status" class="mt-1 text-xs text-secondary"></p>
                     </div>
                     <div class="upload-item">
-                        <label for="faltas-file" class="block mb-2 text-sm font-medium text-gray-300">Planilha de Faltas:</label>
-                        <input type="file" id="faltas-file" accept=".xlsx" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
-                        <p id="faltas-status" class="mt-1 text-xs text-gray-500"></p>
+                        <label for="faltas-file" class="block mb-2 text-sm font-medium text-main">Planilha de Faltas:</label>
+                        <input type="file" id="faltas-file" accept=".xlsx" class="block w-full text-sm text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent-dark" />
+                        <p id="faltas-status" class="mt-1 text-xs text-secondary"></p>
                     </div>
                     <div class="upload-item">
-                        <label for="cadastro-moldes-file" class="block mb-2 text-sm font-medium text-gray-300">Cadastro de Moldes (Opcional):</label>
-                        <input type="file" id="cadastro-moldes-file" accept=".xlsx" class="block w-full text-sm text-gray-400 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-purple-600 file:text-white hover:file:bg-purple-700" />
-                        <p id="cadastro-status" class="mt-1 text-xs text-gray-500"></p>
+                        <label for="cadastro-moldes-file" class="block mb-2 text-sm font-medium text-main">Cadastro de Moldes (Opcional):</label>
+                        <input type="file" id="cadastro-moldes-file" accept=".xlsx" class="block w-full text-sm text-secondary file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-accent file:text-white hover:file:bg-accent-dark" />
+                        <p id="cadastro-status" class="mt-1 text-xs text-secondary"></p>
                     </div>
                 </div>
                 <div class="mt-6 text-right">
-                    <button id="next-step-1" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg" disabled>Próximo Passo</button>
+                    <button id="next-step-1" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg opacity-50 cursor-not-allowed" disabled>Próximo Passo</button>
                 </div>
             </div>
 
             <!-- Step 2: Configure Parameters -->
-            <div id="step-2" class="step-content bg-gray-800 rounded-lg p-6 mb-6 hidden">
-                <h3 class="text-xl font-semibold text-purple-300 mb-4">Passo 2: Definir Parâmetros</h3>
+            <div id="step-2" class="step-content bg-primary-light rounded-lg p-6 mb-6 hidden">
+                <h3 class="text-xl font-semibold text-accent mb-4">Passo 2: Definir Parâmetros</h3>
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
-                        <label for="braco-selecionado" class="block mb-2 text-sm font-medium text-gray-300">Braço Selecionado:</label>
-                        <select id="braco-selecionado" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <label for="braco-selecionado" class="block mb-2 text-sm font-medium text-main">Braço Selecionado:</label>
+                        <select id="braco-selecionado" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                             <option value="Todos">Todos</option>
                         </select>
                     </div>
                     <div>
-                        <label for="dias-programacao" class="block mb-2 text-sm font-medium text-gray-300">Dias de Planejamento:</label>
-                        <input type="number" id="dias-programacao" value="50" min="1" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" />
+                        <label for="dias-programacao" class="block mb-2 text-sm font-medium text-main">Dias de Planejamento:</label>
+                        <input type="number" id="dias-programacao" value="50" min="1" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
                     </div>
                     <div>
-                        <label for="modo-sequenciamento" class="block mb-2 text-sm font-medium text-gray-300">Modo de Sequenciamento:</label>
-                        <select id="modo-sequenciamento" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <label for="modo-sequenciamento" class="block mb-2 text-sm font-medium text-main">Modo de Sequenciamento:</label>
+                        <select id="modo-sequenciamento" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                             <option value="Otimizado" selected>Otimizado</option>
                             <option value="Linear">Linear</option>
                         </select>
                     </div>
                     <div>
-                        <label for="priorizacao-pedidos" class="block mb-2 text-sm font-medium text-gray-300">Priorização de Pedidos:</label>
-                        <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5" />
+                        <label for="priorizacao-pedidos" class="block mb-2 text-sm font-medium text-main">Priorização de Pedidos:</label>
+                        <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
                     </div>
                 </div>
                 <div class="mt-6 flex justify-between">
-                    <button id="prev-step-2" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg">Passo Anterior</button>
-                    <button id="next-step-2" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-6 rounded-lg">Próximo Passo</button>
+                    <button id="prev-step-2" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">Passo Anterior</button>
+                    <button id="next-step-2" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg">Próximo Passo</button>
                 </div>
             </div>
 
             <!-- Step 3: Execute and Results -->
-            <div id="step-3" class="step-content bg-gray-800 rounded-lg p-6 mb-6 hidden">
-                <h3 class="text-xl font-semibold text-purple-300 mb-4">Passo 3: Executar e Analisar Resultados</h3>
+            <div id="step-3" class="step-content bg-primary-light rounded-lg p-6 mb-6 hidden">
+                <h3 class="text-xl font-semibold text-accent mb-4">Passo 3: Executar e Analisar Resultados</h3>
                 <div class="text-center mb-6">
-                    <button id="gerar-programacao-btn" class="bg-green-500 hover:bg-green-600 text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
+                    <button id="gerar-programacao-btn" class="bg-success hover:bg-success-dark text-white font-bold py-3 px-8 rounded-lg shadow-lg transition duration-300 ease-in-out transform hover:scale-105">
                         <i class="fas fa-play mr-2"></i>
                         Gerar Planejamento
                     </button>
@@ -360,7 +414,7 @@
                 
                 <!-- Results Tabs -->
                 <div id="results-tabs" class="hidden">
-                    <div class="flex border-b border-gray-600 mb-6">
+                    <div class="flex border-b border-gray-700 mb-6">
                         <button class="tab-button active px-4 py-2 rounded-t-lg" data-tab="resumo">Resumo e Alertas</button>
                         <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="gantt-tab">Gráficos Gantt</button>
                         <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="detalhes">Programação Detalhada</button>
@@ -371,24 +425,24 @@
                     <!-- Tab Contents -->
                     <div id="resumo-tab" class="tab-content">
                         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
-                            <div class="bg-blue-600 p-4 rounded-lg">
+                            <div class="bg-accent p-4 rounded-lg">
                                 <h4 class="font-semibold">Pedidos Programados</h4>
                                 <p id="resumo-pedidos" class="text-2xl font-bold">-</p>
                             </div>
-                            <div class="bg-green-600 p-4 rounded-lg">
+                            <div class="bg-success p-4 rounded-lg">
                                 <h4 class="font-semibold">Taxa de Ocupação</h4>
                                 <p id="resumo-ocupacao" class="text-2xl font-bold">-</p>
                             </div>
-                            <div class="bg-red-600 p-4 rounded-lg">
+                            <div class="bg-error p-4 rounded-lg">
                                 <h4 class="font-semibold">Moldes Ociosos</h4>
                                 <p id="resumo-ociosos" class="text-2xl font-bold">-</p>
                             </div>
-                            <div class="bg-yellow-600 p-4 rounded-lg">
+                            <div class="bg-warning p-4 rounded-lg text-gray-800">
                                 <h4 class="font-semibold">Produtos Sem Molde instalado</h4>
                                 <p id="resumo-sem-molde" class="text-2xl font-bold">-</p>
                             </div>
                         </div>
-                        <div id="alertas-container" class="bg-gray-700 rounded-lg p-4">
+                        <div id="alertas-container" class="bg-primary-dark rounded-lg p-4">
                             <h4 class="font-semibold mb-3">Alertas Inteligentes</h4>
                             <div id="alertas-lista"></div>
                         </div>
@@ -396,11 +450,11 @@
 
                     <div id="gantt-tab-content" class="tab-content hidden">
                         <div class="space-y-6">
-                            <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="bg-primary-dark rounded-lg p-4">
                                 <h4 class="font-semibold mb-3">Ocupação de Moldes por Timeline</h4>
                                 <div id="gantt-moldes" class="gantt-container"></div>
                             </div>
-                            <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="bg-primary-dark rounded-lg p-4">
                                 <h4 class="font-semibold mb-3">Previsão de Conclusão de Pedidos</h4>
                                 <div id="gantt-pedidos" class="gantt-container"></div>
                             </div>
@@ -408,17 +462,17 @@
                     </div>
 
                     <div id="detalhes-tab" class="tab-content hidden">
-                        <div class="bg-gray-700 rounded-lg p-4">
+                        <div class="bg-primary-dark rounded-lg p-4">
                             <div class="flex justify-between items-center mb-4">
                                 <h4 class="font-semibold">Programação Detalhada</h4>
                                 <div class="flex space-x-2">
-                                    <input type="text" id="search-programacao" placeholder="Buscar..." class="bg-gray-600 text-white px-3 py-1 rounded">
-                                    <button id="export-programacao" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded">Exportar</button>
+                                    <input type="text" id="search-programacao" placeholder="Buscar..." class="bg-primary-light text-white px-3 py-1 rounded">
+                                    <button id="export-programacao" class="bg-accent hover:bg-accent-dark px-3 py-1 rounded">Exportar</button>
                                 </div>
                             </div>
                             <div class="overflow-x-auto max-h-96">
-                                <table id="programacao-table" class="min-w-full text-sm text-left text-gray-300">
-                                    <thead class="text-xs text-gray-200 uppercase bg-gray-600">
+                                <table id="programacao-table" class="min-w-full text-sm text-left text-main">
+                                    <thead class="text-xs text-main uppercase bg-primary-light">
                                         <tr>
                                             <th class="px-4 py-3">Rodada</th>
                                             <th class="px-4 py-3">Data Prevista</th>
@@ -439,19 +493,19 @@
 
                     <div id="graficos-tab" class="tab-content hidden">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="bg-primary-dark p-4 rounded-lg">
                                 <h4 class="font-semibold mb-3">Quantidade por Produto</h4>
                                 <canvas id="graficoProdutos"></canvas>
                             </div>
-                            <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="bg-primary-dark p-4 rounded-lg">
                                 <h4 class="font-semibold mb-3">Evolução por Data</h4>
                                 <canvas id="graficoEvolucao"></canvas>
                             </div>
-                            <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="bg-primary-dark p-4 rounded-lg">
                                 <h4 class="font-semibold mb-3">Moldes por Braço</h4>
                                 <canvas id="graficoMoldesPorBraco"></canvas>
                             </div>
-                            <div class="bg-gray-700 p-4 rounded-lg">
+                            <div class="bg-primary-dark p-4 rounded-lg">
                                 <h4 class="font-semibold mb-3">Distribuição por Braço</h4>
                                 <canvas id="graficoBracos"></canvas>
                             </div>
@@ -460,7 +514,7 @@
 
                     <div id="atencao-tab" class="tab-content hidden">
                         <div class="space-y-6">
-                            <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="bg-primary-dark rounded-lg p-4">
                                 <h4 class="font-semibold mb-3">Moldes Ociosos</h4>
                                 <div class="overflow-x-auto max-h-72">
                                     <table id="ociosos-table" class="min-w-full text-sm text-left text-gray-300">
@@ -476,7 +530,7 @@
                                     </table>
                                 </div>
                             </div>
-                            <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="bg-primary-dark rounded-lg p-4">
                                 <h4 class="font-semibold mb-3">Necessidade Sem Moldes</h4>
                                 <div class="overflow-x-auto max-h-72">
                                     <table id="necessidade-table" class="min-w-full text-sm text-left text-gray-300">
@@ -496,8 +550,8 @@
                 </div>
 
                 <div class="mt-6 flex justify-between">
-                    <button id="prev-step-3" class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-6 rounded-lg">Passo Anterior</button>
-                    <button id="enviar-sankhya-btn" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg hidden">Enviar para Sankhya</button>
+                    <button id="prev-step-3" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">Passo Anterior</button>
+                    <button id="enviar-sankhya-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-6 rounded-lg hidden">Enviar para Sankhya</button>
                 </div>
             </div>
         </div>
@@ -505,33 +559,33 @@
         <!-- Análise Histórica Section -->
         <div id="analise-section" class="section hidden p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Análise Histórica</h2>
-                <p class="text-gray-400">Compare e analise programações anteriores</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Análise Histórica</h2>
+                <p class="text-secondary">Compare e analise programações anteriores</p>
             </div>
 
-            <div class="bg-gray-800 rounded-lg p-6">
+            <div class="bg-primary-light rounded-lg p-6">
                 <div class="flex justify-between items-center mb-4">
                     <h3 class="text-xl font-semibold">Histórico de Programações</h3>
-                    <button id="comparar-btn" class="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-lg opacity-50 cursor-not-allowed" disabled>
+                    <button id="comparar-btn" class="bg-accent hover:bg-accent-dark text-white px-4 py-2 rounded-lg opacity-50 cursor-not-allowed" disabled>
                         Comparar Selecionadas
                     </button>
                 </div>
                 <div id="historico-lista" class="space-y-3">
-                    <p class="text-gray-400">Carregando histórico...</p>
+                    <p class="text-secondary">Carregando histórico...</p>
                 </div>
             </div>
 
             <!-- Comparison Results -->
-            <div id="comparison-results" class="hidden mt-8 bg-gray-800 rounded-lg p-6">
+            <div id="comparison-results" class="hidden mt-8 bg-primary-light rounded-lg p-6">
                 <h3 class="text-xl font-semibold mb-4">Resultado da Comparação</h3>
                 <div id="comparison-content"></div>
             </div>
 
             <!-- Histórico de Atrasos -->
-            <div class="mt-8 bg-gray-800 rounded-lg p-6">
-                <h3 class="text-xl font-semibold text-purple-400 mb-4">Histórico de Atrasos de Pedidos</h3>
+            <div class="mt-8 bg-primary-light rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-accent mb-4">Histórico de Atrasos de Pedidos</h3>
                 <div id="historico-atrasos-container" class="overflow-x-auto max-h-96">
-                    <p class="text-gray-400">Carregando histórico de atrasos...</p>
+                    <p class="text-secondary">Carregando histórico de atrasos...</p>
                 </div>
             </div>
         </div>
@@ -539,8 +593,8 @@
         <!-- Relatórios Section -->
         <div id="relatorios-section" class="section hidden p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Relatórios</h2>
-                <p class="text-gray-400">Gere relatórios consolidados e personalizados</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Relatórios</h2>
+                <p class="text-secondary">Gere relatórios consolidados e personalizados</p>
             </div>
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -549,22 +603,22 @@
                     <p class="text-gray-400 mb-4">Selecione uma programação do histórico para gerar um relatório completo em PDF com KPIs, tabelas e pontos de atenção.</p>
                     
                     <div class="mb-4">
-                        <label for="relatorio-programacao-select" class="block mb-2 text-sm font-medium text-gray-300">Selecione a Programação:</label>
-                        <select id="relatorio-programacao-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                        <label for="relatorio-programacao-select" class="block mb-2 text-sm font-medium text-main">Selecione a Programação:</label>
+                        <select id="relatorio-programacao-select" class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                             <option>Carregando histórico...</option>
                         </select>
                     </div>
 
-                    <button id="gerar-pdf-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled>
+                    <button id="gerar-pdf-btn" class="bg-accent hover:bg-accent-dark text-white px-4 py-2 rounded-lg w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         <i class="fas fa-file-pdf mr-2"></i>
                         Gerar PDF
                     </button>
                 </div>
                 
-                <div class="bg-gray-800 rounded-lg p-6">
+                <div class="bg-primary-light rounded-lg p-6">
                     <h3 class="text-xl font-semibold mb-4">Análise de Tendências</h3>
-                    <p class="text-gray-400 mb-4">Evolução de métricas ao longo do tempo (Em desenvolvimento)</p>
-                    <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg disabled:opacity-50" disabled>
+                    <p class="text-secondary mb-4">Evolução de métricas ao longo do tempo (Em desenvolvimento)</p>
+                    <button class="bg-success hover:bg-success-dark text-white px-4 py-2 rounded-lg disabled:opacity-50" disabled>
                         <i class="fas fa-chart-line mr-2"></i>
                         Visualizar
                     </button>
@@ -575,17 +629,17 @@
         <!-- Gantt Section -->
         <div id="gantt-section" class="section hidden p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Gráficos Gantt</h2>
-                <p class="text-gray-400">Visualização temporal da programação</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Gráficos Gantt</h2>
+                <p class="text-secondary">Visualização temporal da programação</p>
             </div>
 
             <div class="space-y-8">
-                <div class="bg-gray-800 rounded-lg p-6">
+                <div class="bg-primary-light rounded-lg p-6">
                     <h3 class="text-xl font-semibold mb-4">Ocupação de Moldes na Timeline</h3>
                     <div id="gantt-moldes-full" class="gantt-container"></div>
                 </div>
 
-                <div class="bg-gray-800 rounded-lg p-6">
+                <div class="bg-primary-light rounded-lg p-6">
                     <h3 class="text-xl font-semibold mb-4">Previsão de Conclusão de Pedidos</h3>
                     <div id="gantt-pedidos-full" class="gantt-container"></div>
                 </div>
@@ -595,19 +649,19 @@
         <!-- Cadastros Section -->
         <div id="cadastros-section" class="section hidden p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Cadastros Gerais</h2>
-                <p class="text-gray-400">Gerencie os dados mestres do sistema</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Cadastros Gerais</h2>
+                <p class="text-secondary">Gerencie os dados mestres do sistema</p>
             </div>
 
             <!-- Cadastro de Motivos de Ocorrência -->
-            <div class="bg-gray-800 rounded-lg p-6">
-                <h3 class="text-xl font-semibold text-purple-400 mb-4">Motivos de Ocorrência de Atraso</h3>
+            <div class="bg-primary-light rounded-lg p-6">
+                <h3 class="text-xl font-semibold text-accent mb-4">Motivos de Ocorrência de Atraso</h3>
                 
                 <!-- Formulário para adicionar novo motivo -->
                 <div class="mb-6">
                     <div class="flex space-x-2">
-                        <input type="text" id="novo-motivo-input" placeholder="Digite o novo motivo..." class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-purple-500">
-                        <button id="adicionar-motivo-btn" class="bg-purple-600 hover:bg-purple-700 text-white font-bold py-2 px-4 rounded-lg">
+                        <input type="text" id="novo-motivo-input" placeholder="Digite o novo motivo..." class="flex-grow bg-primary-dark text-black px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500">
+                        <button id="adicionar-motivo-btn" class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg">
                             <i class="fas fa-plus mr-2"></i>
                             Adicionar
                         </button>
@@ -616,8 +670,8 @@
 
                 <!-- Tabela de motivos existentes -->
                 <div class="overflow-x-auto max-h-96">
-                    <table class="min-w-full text-sm text-left text-gray-300">
-                        <thead class="text-xs text-gray-200 uppercase bg-gray-600">
+                    <table class="min-w-full text-sm text-left text-main">
+                        <thead class="text-xs text-main uppercase bg-primary-dark">
                             <tr><th class="px-4 py-3">Motivo da Ocorrência</th><th class="px-4 py-3 text-right">Ações</th></tr>
                         </thead>
                         <tbody id="motivos-tabela-body"></tbody>

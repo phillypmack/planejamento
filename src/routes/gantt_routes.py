@@ -412,8 +412,11 @@ def build_pdf_report(programacao_data, historico_atrasos):
         
         ociosos_table = Table(ociosos_table_data, colWidths=[250, 100, 100, 100])
         ociosos_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.orange), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black), ('BACKGROUND', (0, 1), (-1, -1), colors.lightyellow)
+            ('BACKGROUND', (0, 0), (-1, 0), colors.orange),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.lightyellow)
         ]))
         elements.append(ociosos_table)
         elements.append(Spacer(1, 20))
@@ -444,8 +447,11 @@ def build_pdf_report(programacao_data, historico_atrasos):
         
         sem_molde_table = Table(sem_molde_table_data, colWidths=[350, 120, 120])
         sem_molde_table.setStyle(TableStyle([
-            ('BACKGROUND', (0, 0), (-1, 0), colors.red), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
-            ('GRID', (0, 0), (-1, -1), 1, colors.black), ('BACKGROUND', (0, 1), (-1, -1), colors.pink)
+            ('BACKGROUND', (0, 0), (-1, 0), colors.red),
+            ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.pink)
         ]))
         elements.append(sem_molde_table)
 
@@ -827,6 +833,61 @@ def atribuir_motivo_atraso(atraso_id):
             return jsonify({"error": "Registro de atraso não encontrado"}), 404
     except Exception as e:
         return jsonify({"error": f"Erro ao atribuir motivo: {str(e)}"}), 500
+
+@gantt_bp.route("/consultar_pedido/<int:pedido_id>", methods=["GET"])
+def consultar_pedido(pedido_id):
+    """
+    Consulta os detalhes de um pedido específico no último planejamento.
+    """
+    try:
+        # 1. Buscar o último planejamento
+        ultimo_planejamento = programacao_results_collection.find_one(
+            sort=[("timestamp", DESCENDING)]
+        )
+        if not ultimo_planejamento:
+            return jsonify({"error": "Nenhum planejamento encontrado"}), 404
+
+        programacao_data = ultimo_planejamento.get("programacao_data", [])
+        if not programacao_data:
+            return jsonify({"error": "Dados de programação não encontrados no último planejamento"}), 404
+
+        # 2. Filtrar itens do pedido
+        # O campo 'Pedido' pode ser float, então convertemos para int para comparar
+        itens_do_pedido = [
+            item for item in programacao_data if int(item.get("Pedido", 0)) == pedido_id
+        ]
+
+        if not itens_do_pedido:
+            return jsonify({"error": f"Pedido {pedido_id} não encontrado no último planejamento"}), 404
+
+        # 3. Calcular data de finalização e coletar detalhes
+        datas_previstas = []
+        detalhes_itens = []
+
+        for item in itens_do_pedido:
+            datas_previstas.append(datetime.strptime(item["Data Prevista"], "%d/%m/%Y"))
+            detalhes_itens.append({
+                "produto": item.get("Produto"),
+                "braco": item.get("Braço"),
+                "rodada": item.get("Número da Rodada"),
+                "data_prevista_item": item.get("Data Prevista"),
+                "quantidade": item.get("Quantidade Programada")
+            })
+        
+        data_finalizacao = max(datas_previstas).strftime("%d/%m/%Y")
+
+        # Ordenar os itens por data e rodada para melhor visualização
+        detalhes_itens.sort(key=lambda x: (datetime.strptime(x['data_prevista_item'], "%d/%m/%Y"), x['rodada']))
+
+        return jsonify({
+            "pedido_id": pedido_id,
+            "data_finalizacao": data_finalizacao,
+            "itens": detalhes_itens,
+            "timestamp_planejamento": ultimo_planejamento.get("timestamp")
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao consultar pedido: {str(e)}"}), 500
 
 @gantt_bp.route("/gerar_relatorio_pdf/<programacao_id>", methods=["POST"])
 def gerar_relatorio_pdf(programacao_id):

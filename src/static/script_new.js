@@ -63,6 +63,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Relatórios
         document.getElementById('gerar-pdf-btn').addEventListener('click', gerarRelatorioPDF);
+
+        // Consulta Pedido
+        document.getElementById('pedido-search-btn').addEventListener('click', consultarPedido);
     }
 
     function showSection(sectionName) {
@@ -417,10 +420,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function getAlertClass(type) {
         switch (type) {
-            case 'error': return 'bg-red-600 text-white';
-            case 'warning': return 'bg-yellow-600 text-white';
-            case 'info': return 'bg-blue-600 text-white';
-            default: return 'bg-gray-600 text-white';
+            case 'error': return 'bg-error text-white';
+            case 'warning': return 'bg-warning text-gray-800';
+            case 'info': return 'bg-accent text-white';
+            default: return 'bg-primary-light text-white';
         }
     }
 
@@ -457,9 +460,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 labels: produtos,
                 datasets: [{
                     label: 'Quantidade Programada',
-                    data: quantidades,
-                    backgroundColor: 'rgba(147, 51, 234, 0.6)',
-                    borderColor: 'rgba(147, 51, 234, 1)',
+                    data: quantidades, // Accent Color
+                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
                     borderWidth: 1
                 }]
             },
@@ -525,16 +528,16 @@ document.addEventListener("DOMContentLoaded", () => {
                 labels: datas,
                 datasets: [{
                     label: 'Quantidade Total',
-                    data: quantidadesTotais,
-                    borderColor: 'rgba(59, 130, 246, 1)',
-                    backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    data: quantidadesTotais, // Accent Color
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
                     tension: 0.4,
                     fill: true
                 }, {
-                    label: 'Quantidade para Estoque',
+                    label: 'Quantidade para Estoque', // Success Color
                     data: quantidadesEstoque,
-                    borderColor: 'rgba(16, 185, 129, 1)', // Cor verde para diferenciar
-                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    backgroundColor: 'rgba(46, 204, 113, 0.2)',
                     tension: 0.4,
                     fill: true
                 }]
@@ -575,12 +578,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 datasets: [{
                     data: quantidades,
                     backgroundColor: [
-                        'rgba(234, 179, 8, 0.6)',
-                        'rgba(234, 88, 12, 0.6)',
-                        'rgba(168, 85, 247, 0.6)',
-                        'rgba(59, 130, 246, 0.6)',
-                        'rgba(34, 197, 94, 0.6)',
-                        'rgba(239, 68, 68, 0.6)'
+                        'rgba(52, 152, 219, 0.7)', // Blue
+                        'rgba(46, 204, 113, 0.7)', // Green
+                        'rgba(243, 156, 18, 0.7)', // Orange
+                        'rgba(26, 188, 156, 0.7)', // Turquoise
+                        'rgba(155, 89, 182, 0.7)', // Purple
+                        'rgba(231, 76, 60, 0.7)'  // Red
                     ]
                 }]
             },
@@ -609,12 +612,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 datasets: [{
                     data: moldes,
                     backgroundColor: [
-                        'rgba(147, 51, 234, 0.6)',
-                        'rgba(79, 70, 229, 0.6)',
-                        'rgba(59, 130, 246, 0.6)',
-                        'rgba(16, 185, 129, 0.6)',
-                        'rgba(245, 158, 11, 0.6)',
-                        'rgba(239, 68, 68, 0.6)'
+                        'rgba(52, 152, 219, 0.7)', // Blue
+                        'rgba(46, 204, 113, 0.7)', // Green
+                        'rgba(243, 156, 18, 0.7)', // Orange
+                        'rgba(26, 188, 156, 0.7)', // Turquoise
+                        'rgba(155, 89, 182, 0.7)', // Purple
+                        'rgba(231, 76, 60, 0.7)'  // Red
                     ]
                 }]
             },
@@ -1450,6 +1453,89 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     };
 
+    async function consultarPedido() {
+        const pedidoId = document.getElementById('pedido-search-input').value.trim();
+        const resultsContainer = document.getElementById('pedido-search-results-container');
+        
+        if (!pedidoId) {
+            alert('Por favor, digite o número de um pedido.');
+            return;
+        }
+    
+        showLoading();
+        resultsContainer.innerHTML = ''; // Clear previous results
+        resultsContainer.classList.add('hidden');
+    
+        try {
+            const response = await fetch(`/api/gantt/consultar_pedido/${pedidoId}`);
+            const result = await response.json();
+    
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao consultar pedido.');
+            }
+    
+            displayPedidoSearchResults(result);
+    
+        } catch (error) {
+            resultsContainer.innerHTML = `<p class="text-red-400">${error.message}</p>`;
+            resultsContainer.classList.remove('hidden');
+        } finally {
+            hideLoading();
+        }
+    }
+    
+    function displayPedidoSearchResults(data) {
+        const resultsContainer = document.getElementById('pedido-search-results-container');
+        const { pedido_id, data_finalizacao, itens, timestamp_planejamento } = data;
+    
+        const timestamp = new Date(timestamp_planejamento).toLocaleString('pt-BR');
+    
+        const itemsHtml = itens.map(item => `
+            <tr class="border-b border-gray-700 hover:bg-gray-700">
+                <td class="px-4 py-2">${item.produto}</td>
+                <td class="px-4 py-2 text-center">${item.braco}</td>
+                <td class="px-4 py-2 text-center">${item.rodada}</td>
+                <td class="px-4 py-2 text-center">${item.data_prevista_item}</td>
+                <td class="px-4 py-2 text-right">${(item.quantidade || 0).toLocaleString('pt-BR')}</td>
+            </tr>
+        `).join('');
+    
+        resultsContainer.innerHTML = `
+            <div class="bg-gray-900 p-4 rounded-lg">
+                <div class="flex flex-col sm:flex-row justify-between sm:items-center mb-4">
+                    <div>
+                        <h4 class="text-lg font-bold text-white">Pedido: ${pedido_id}</h4>
+                        <p class="text-secondary text-sm">Dados do último planejamento de ${timestamp}</p>
+                    </div>
+                    <div class="mt-2 sm:mt-0 sm:text-right">
+                        <p class="text-secondary">Previsão de Finalização:</p>
+                        <p class="text-xl font-bold text-green-400">${data_finalizacao}</p>
+                    </div>
+                </div>
+                
+                <h5 class="text-md font-semibold text-gray-300 mb-2">Itens Programados:</h5>
+                <div class="overflow-x-auto max-h-72">
+                    <table class="min-w-full text-sm text-left text-gray-300">
+                        <thead class="text-xs text-gray-200 uppercase bg-gray-600 sticky top-0">
+                            <tr>
+                                <th class="px-4 py-2">Produto</th>
+                                <th class="px-4 py-2 text-center">Braço</th>
+                                <th class="px-4 py-2 text-center">Rodada</th>
+                                <th class="px-4 py-2 text-center">Data Prevista do Item</th>
+                                <th class="px-4 py-2 text-right">Quantidade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itemsHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+    
+        resultsContainer.classList.remove('hidden');
+    }
+
     async function loadAtrasosHistorico() {
         try {
             // Fetch both delay history and reasons in parallel
@@ -1500,7 +1586,7 @@ document.addEventListener("DOMContentLoaded", () => {
                                         ${item.motivo_atraso 
                                             ? `<span class="font-semibold text-yellow-400">${item.motivo_atraso}</span>`
                                             : `
-                                            <div class="flex items-center space-x-2">
+                                            <div class="flex items-center space-x-2" onclick="event.stopPropagation()">
                                                 <select class="motivo-select bg-gray-700 text-white text-xs rounded p-1" data-atraso-id="${item._id}">
                                                     <option value="">Selecione...</option>
                                                     ${motivosOptions}
