@@ -43,6 +43,12 @@
         .kpi-card-yellow {
             background: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
         }
+        .kpi-card-blue {
+            background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+        }
+        .kpi-card-teal {
+            background: linear-gradient(135deg, #14b8a6 0%, #0d9488 100%);
+        }
         .nav-item {
             transition: all 0.3s ease;
         }
@@ -71,6 +77,39 @@
         .step-indicator.completed {
             background-color: #10b981;
             color: white;
+        }
+        /* Custom Gantt Bar Colors */
+        .gantt .bar-order .bar {
+            fill: #3b82f6; /* Blue-500 */
+        }
+        .gantt .bar-stock .bar {
+            fill: #10b981; /* Green-500 */
+        }
+        .gantt .bar-comparison-old .bar {
+            fill: #f59e0b; /* amber-500 */
+        }
+        .gantt .bar-comparison-new .bar {
+            fill: #ef4444; /* red-500 */
+        }
+        .gantt .bar-order .bar-progress,
+        .gantt .bar-stock .bar-progress,
+        .gantt .bar-comparison-old .bar-progress,
+        .gantt .bar-comparison-new .bar-progress {
+            /* Make progress bar darker for contrast */
+            fill: rgba(0, 0, 0, 0.25);
+        }
+        /* Custom styles for Gantt header to match dark theme and be sticky */
+        .gantt .grid-header {
+            /* A propriedade position:sticky não funciona de forma confiável em elementos <g> do SVG.
+               O posicionamento agora é controlado via JavaScript. Este estilo define a cor de fundo. */
+            fill: #1f2937; /* Cor de fundo para esconder o conteúdo que rola por baixo */
+            stroke: #374151; /* Cor da borda */
+        }
+
+        .gantt .grid-header .lower-text,
+        .gantt .grid-header .upper-text {
+            fill: #e5e7eb; /* Cor de texto clara (gray-200) para bom contraste */
+            font-weight: 500;
         }
     </style>
 </head>
@@ -139,7 +178,7 @@
             </div>
 
             <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
+            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
                 <div class="kpi-card p-6 rounded-lg text-white">
                     <div class="flex items-center justify-between">
                         <div>
@@ -160,10 +199,30 @@
                     </div>
                 </div>
                 
+                <div class="kpi-card-blue p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Total de Itens para Pedidos</p>
+                            <p id="kpi-itens-pedidos" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-boxes text-3xl opacity-80"></i>
+                    </div>
+                </div>
+
+                <div class="kpi-card-teal p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Itens para Estoque</p>
+                            <p id="kpi-itens-estoque" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-warehouse text-3xl opacity-80"></i>
+                    </div>
+                </div>
+
                 <div class="kpi-card-red p-6 rounded-lg text-white">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm opacity-80">Pedidos Críticos</p>
+                            <p class="text-sm opacity-80">Produtos Sem Molde</p>
                             <p id="kpi-criticos" class="text-2xl font-bold">-</p>
                         </div>
                         <i class="fas fa-exclamation-triangle text-3xl opacity-80"></i>
@@ -181,25 +240,12 @@
                 </div>
             </div>
 
-            <!-- Quick Actions -->
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-                <button class="quick-action bg-green-600 hover:bg-green-700 p-6 rounded-lg text-center transition-all duration-300 transform hover:scale-105" onclick="showSection('planejamento')">
-                    <i class="fas fa-play text-3xl mb-3"></i>
-                    <h3 class="text-lg font-semibold">Iniciar Novo Planejamento</h3>
-                    <p class="text-sm opacity-80">Configure e execute uma nova programação</p>
-                </button>
-                
-                <button class="quick-action bg-blue-600 hover:bg-blue-700 p-6 rounded-lg text-center transition-all duration-300 transform hover:scale-105" onclick="carregarUltimoPlanejamento()">
-                    <i class="fas fa-eye text-3xl mb-3"></i>
-                    <h3 class="text-lg font-semibold">Ver Último Resultado</h3>
-                    <p class="text-sm opacity-80">Visualizar a programação mais recente</p>
-                </button>
-                
-                <button class="quick-action bg-purple-600 hover:bg-purple-700 p-6 rounded-lg text-center transition-all duration-300 transform hover:scale-105" onclick="showSection('analise')">
-                    <i class="fas fa-chart-bar text-3xl mb-3"></i>
-                    <h3 class="text-lg font-semibold">Comparar Planos</h3>
-                    <p class="text-sm opacity-80">Analisar diferentes programações</p>
-                </button>
+            <!-- Gantt Comparison -->
+            <div class="bg-gray-800 rounded-lg p-6 mb-8">
+                <h3 class="text-xl font-semibold text-purple-400 mb-4">Análise de Atrasos (Últimas 2 Programações)</h3>
+                <div id="gantt-comparacao-atrasos" class="gantt-container">
+                    <p class="text-gray-400">Carregando análise de atrasos...</p>
+                </div>
             </div>
 
             <!-- Recent History -->
@@ -213,9 +259,17 @@
 
         <!-- Planejamento Section -->
         <div id="planejamento-section" class="section hidden p-8">
-            <div class="mb-8">
-                <h2 class="text-3xl font-bold text-purple-400 mb-2">Novo Planejamento</h2>
-                <p class="text-gray-400">Siga os passos para gerar sua programação otimizada</p>
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-purple-400 mb-2">Novo Planejamento</h2>
+                    <p class="text-gray-400">Siga os passos para gerar sua programação otimizada</p>
+                </div>
+                <div>
+                    <button onclick="carregarUltimoPlanejamento()" class="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        <i class="fas fa-eye mr-2"></i>
+                        Mostrar Último Planejamento
+                    </button>
+                </div>
             </div>
 
             <!-- Step Indicator -->
@@ -322,7 +376,7 @@
                                 <p id="resumo-ociosos" class="text-2xl font-bold">-</p>
                             </div>
                             <div class="bg-yellow-600 p-4 rounded-lg">
-                                <h4 class="font-semibold">Produtos Sem Molde</h4>
+                                <h4 class="font-semibold">Produtos Sem Molde instalado</h4>
                                 <p id="resumo-sem-molde" class="text-2xl font-bold">-</p>
                             </div>
                         </div>

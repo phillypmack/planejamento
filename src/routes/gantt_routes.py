@@ -231,7 +231,7 @@ def comparar_programacoes():
 
 def calcular_datas_conclusao(programacao_data):
     """
-    Calcula a data de conclusão de cada pedido baseado na programação
+    Calcula as datas de início e conclusão de cada pedido baseado na programação
     """
     pedido_info = {}
     
@@ -250,11 +250,14 @@ def calcular_datas_conclusao(programacao_data):
         pedido_info[pedido]["datas"].append(data_prevista)
         pedido_info[pedido]["quantidade_total"] += quantidade
     
-    # Determinar data de conclusão (última data de produção)
+    # Determinar data de início e conclusão
     conclusoes = {}
     for pedido, info in pedido_info.items():
+        if not info["datas"]:
+            continue
         datas_ordenadas = sorted(info["datas"], key=lambda x: datetime.strptime(x, "%d/%m/%Y"))
         conclusoes[pedido] = {
+            "data_inicio": datas_ordenadas[0],
             "data_conclusao": datas_ordenadas[-1],
             "produto": info["produto"],
             "quantidade_total": info["quantidade_total"]
@@ -385,6 +388,78 @@ def gerar_alertas_inteligentes():
         
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar alertas inteligentes: {str(e)}"}), 500
+
+@gantt_bp.route("/gantt_comparacao_atrasos", methods=["GET"])
+def gantt_comparacao_atrasos():
+    """
+    Gera dados para um gráfico de Gantt comparando os atrasos
+    entre as duas últimas programações.
+    """
+    try:
+        # 1. Buscar as duas últimas programações
+        cursor = programacao_results_collection.find().sort("timestamp", DESCENDING).limit(2)
+        programacoes = list(cursor)
+        
+        if len(programacoes) < 2:
+            return jsonify({
+                "gantt_data": [], 
+                "message": "Pelo menos duas programações são necessárias para comparação."
+            }), 200
+        
+        prog_recente, prog_anterior = programacoes[0], programacoes[1]
+
+        # 2. Calcular datas de conclusão para cada programação
+        conclusoes_recente = calcular_datas_conclusao(prog_recente.get("programacao_data", []))
+        conclusoes_anterior = calcular_datas_conclusao(prog_anterior.get("programacao_data", []))
+
+        # 3. Comparar as datas e encontrar atrasos
+        comparacao = []
+        pedidos_comuns = set(conclusoes_recente.keys()) & set(conclusoes_anterior.keys())
+        
+        for pedido in pedidos_comuns:
+            data_fim_anterior = datetime.strptime(conclusoes_anterior[pedido]["data_conclusao"], "%d/%m/%Y")
+            data_fim_recente = datetime.strptime(conclusoes_recente[pedido]["data_conclusao"], "%d/%m/%Y")
+            
+            diferenca_dias = (data_fim_recente - data_fim_anterior).days
+            
+            if diferenca_dias > 0: # Apenas atrasos
+                comparacao.append({
+                    "pedido": pedido,
+                    "produto": conclusoes_recente[pedido]["produto"],
+                    "diferenca_dias": diferenca_dias,
+                    "anterior": conclusoes_anterior[pedido],
+                    "recente": conclusoes_recente[pedido]
+                })
+        
+        # 4. Ordenar por maior atraso e pegar o top 5
+        comparacao.sort(key=lambda x: x["diferenca_dias"], reverse=True)
+        top_atrasos = comparacao[:5]
+
+        # 5. Formatar para o gráfico de Gantt
+        gantt_data = []
+        for item in top_atrasos:
+            pedido_str = str(item['pedido'])
+            
+            start_anterior = datetime.strptime(item["anterior"]["data_inicio"], "%d/%m/%Y")
+            end_anterior = datetime.strptime(item["anterior"]["data_conclusao"], "%d/%m/%Y")
+            gantt_data.append({
+                "id": f"comp_{pedido_str}_anterior", "name": f"Pedido {pedido_str} (Anterior)",
+                "start": start_anterior.strftime("%Y-%m-%d"), "end": (end_anterior + timedelta(days=1)).strftime("%Y-%m-%d"),
+                "progress": 100, "custom_class": "bar-comparison-old"
+            })
+
+            start_recente = datetime.strptime(item["recente"]["data_inicio"], "%d/%m/%Y")
+            end_recente = datetime.strptime(item["recente"]["data_conclusao"], "%d/%m/%Y")
+            gantt_data.append({
+                "id": f"comp_{pedido_str}_recente", "name": f"Pedido {pedido_str} (Recente)",
+                "start": start_recente.strftime("%Y-%m-%d"), "end": (end_recente + timedelta(days=1)).strftime("%Y-%m-%d"),
+                "progress": 100, "custom_class": "bar-comparison-new"
+            })
+
+        return jsonify({"gantt_data": gantt_data}), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar Gantt de comparação de atrasos: {str(e)}"}), 500
 
 @gantt_bp.route("/obter_ultimo_planejamento", methods=["GET"])
 def obter_ultimo_planejamento():

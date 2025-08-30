@@ -12,7 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
-        loadDashboardData();
+        loadDashboardData(); // Carrega KPIs e histórico recente
         loadHistorico();
     }
 
@@ -281,10 +281,30 @@ document.addEventListener("DOMContentLoaded", () => {
         const ociosos = data.moldes_ociosos_data ? data.moldes_ociosos_data.length : 0;
         const semMolde = data.necessidade_sem_moldes_data ? data.necessidade_sem_moldes_data.length : 0;
         
+        // Cálculo da Taxa de Ocupação
+        let taxaOcupacao = '0%';
+        if (data.programacao_data && data.moldes_ociosos_data && data.dias_programacao > 0) {
+            const moldesUsados = new Set(data.programacao_data.map(item => item.Produto));
+            const moldesOciosos = new Set(data.moldes_ociosos_data.map(item => item.Nome));
+            const totalMoldes = new Set([...moldesUsados, ...moldesOciosos]).size;
+
+            if (totalMoldes > 0) {
+                // Total de "molde-dias" disponíveis no período
+                const totalDiasDisponiveis = totalMoldes * data.dias_programacao;
+                
+                // Total de "molde-dias" que foram efetivamente utilizados
+                const diasDeUsoEfetivo = new Set(data.programacao_data.map(item => `${item.Produto}|${item['Data Prevista']}`)).size;
+
+                if (totalDiasDisponiveis > 0) {
+                    taxaOcupacao = ((diasDeUsoEfetivo / totalDiasDisponiveis) * 100).toFixed(1) + '%';
+                }
+            }
+        }
+
         document.getElementById('resumo-pedidos').textContent = pedidos;
         document.getElementById('resumo-ociosos').textContent = ociosos;
         document.getElementById('resumo-sem-molde').textContent = semMolde;
-        document.getElementById('resumo-ocupacao').textContent = '85%'; // Calculate based on data
+        document.getElementById('resumo-ocupacao').textContent = taxaOcupacao;
     }
 
     function generateAlerts(data) {
@@ -292,16 +312,44 @@ document.addEventListener("DOMContentLoaded", () => {
         alertsContainer.innerHTML = '';
 
         const alerts = [];
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
 
-        // Check for critical orders
+        // Check for order and stock quantities
         if (data.programacao_data) {
-            const priorityOrders = data.programacao_data.filter(item => 
-                !["9999997", "9999998", "9999999"].includes(String(item.Pedido))
+            const customerOrdersData = data.programacao_data.filter(item => 
+                !stockOrderIds.includes(String(item.Pedido))
             );
-            if (priorityOrders.length > 0) {
+            const stockOrdersData = data.programacao_data.filter(item => 
+                stockOrderIds.includes(String(item.Pedido))
+            );
+
+            // 1. "X pedidos foram programados"
+            const uniqueCustomerOrdersCount = new Set(customerOrdersData.map(item => item.Pedido)).size;
+            if (uniqueCustomerOrdersCount > 0) {
                 alerts.push({
                     type: 'info',
-                    message: `${priorityOrders.length} pedidos prioritários foram programados.`
+                    icon: 'fa-shopping-cart',
+                    message: `${uniqueCustomerOrdersCount.toLocaleString('pt-BR')} pedidos foram programados.`
+                });
+            }
+
+            // 2. "X itens foram programados para pedidos"
+            const totalItemsForCustomers = customerOrdersData.reduce((sum, item) => sum + item["Quantidade Programada"], 0);
+            if (totalItemsForCustomers > 0) {
+                alerts.push({
+                    type: 'info',
+                    icon: 'fa-box-open',
+                    message: `${totalItemsForCustomers.toLocaleString('pt-BR')} itens foram programados para pedidos.`
+                });
+            }
+
+            // 3. "X Itens foram programados para Estoque"
+            const totalItemsForStock = stockOrdersData.reduce((sum, item) => sum + item["Quantidade Programada"], 0);
+            if (totalItemsForStock > 0) {
+                alerts.push({
+                    type: 'info',
+                    icon: 'fa-warehouse',
+                    message: `${totalItemsForStock.toLocaleString('pt-BR')} Itens foram programados para Estoque.`
                 });
             }
         }
@@ -311,6 +359,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const idleMolds = data.moldes_ociosos_data.length;
             alerts.push({
                 type: 'warning',
+                icon: 'fa-exclamation-circle',
                 message: `${idleMolds} moldes ficarão ociosos durante o período.`
             });
         }
@@ -320,6 +369,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const withoutMolds = data.necessidade_sem_moldes_data.length;
             alerts.push({
                 type: 'error',
+                icon: 'fa-exclamation-triangle',
                 message: `${withoutMolds} produtos precisam de moldes para atender a demanda.`
             });
         }
@@ -330,7 +380,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alertDiv.className = `p-3 rounded-lg mb-2 ${getAlertClass(alert.type)}`;
             alertDiv.innerHTML = `
                 <div class="flex items-center">
-                    <i class="fas ${getAlertIcon(alert.type)} mr-2"></i>
+                    <i class="fas ${alert.icon || getAlertIcon(alert.type)} mr-2"></i>
                     <span>${alert.message}</span>
                 </div>
             `;
@@ -412,10 +462,37 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function createEvolutionChart(data) {
         const ctx = document.getElementById('graficoEvolucao').getContext('2d');
+
+        // Destrói o gráfico anterior, se existir, para evitar sobreposição de tooltips e dados
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
+
+        // Define os pedidos que são considerados para estoque (consistente com o resto da aplicação)
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
         
-        const datas = [...new Set(data.map(item => item["Data Prevista"]))].sort();
-        const quantidades = datas.map(data_item =>
+        // Ordena as datas corretamente (formato DD/MM/YYYY)
+        const datas = [...new Set(data.map(item => item["Data Prevista"]))].sort((a, b) => {
+            const partsA = a.split('/'); // [DD, MM, YYYY]
+            const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+            const partsB = b.split('/'); // [DD, MM, YYYY]
+            const dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+            return dateA - dateB;
+        });
+
+        // Calcula a quantidade total por data
+        const quantidadesTotais = datas.map(data_item =>
             data.filter(item => item["Data Prevista"] === data_item)
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
+        // Calcula a quantidade apenas para pedidos de estoque
+        const quantidadesEstoque = datas.map(data_item =>
+            data.filter(item => 
+                    item["Data Prevista"] === data_item && 
+                    stockOrderIds.includes(String(item.Pedido))
+                )
                 .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
         );
 
@@ -424,10 +501,17 @@ document.addEventListener("DOMContentLoaded", () => {
             data: {
                 labels: datas,
                 datasets: [{
-                    label: 'Quantidade por Data',
-                    data: quantidades,
+                    label: 'Quantidade Total',
+                    data: quantidadesTotais,
                     borderColor: 'rgba(59, 130, 246, 1)',
                     backgroundColor: 'rgba(59, 130, 246, 0.1)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Quantidade para Estoque',
+                    data: quantidadesEstoque,
+                    borderColor: 'rgba(16, 185, 129, 1)', // Cor verde para diferenciar
+                    backgroundColor: 'rgba(16, 185, 129, 0.1)',
                     tension: 0.4,
                     fill: true
                 }]
@@ -603,7 +687,34 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             // Rola o gráfico para a data de hoje
-            gantt.show_date(new Date());
+            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+            const today = new Date();
+            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+            if (today_element && gantt.$container) {
+                // Pega a posição X do elemento de data
+                const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                const text_width = today_element.getBBox().width;
+                // Centraliza a data de hoje na visualização do container
+                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+            }
+
+            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+            const ganttContainer = document.querySelector('#gantt-moldes');
+            const header = ganttContainer.querySelector('.grid-header');
+            if (ganttContainer && header) {
+                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                // movendo-o para o final do seu container SVG pai.
+                header.parentNode.appendChild(header);
+
+                ganttContainer.addEventListener('scroll', () => {
+                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                });
+            }
         }
     }
 
@@ -626,7 +737,34 @@ document.addEventListener("DOMContentLoaded", () => {
             });
 
             // Rola o gráfico para a data de hoje
-            gantt.show_date(new Date());
+            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+            const today = new Date();
+            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+            if (today_element && gantt.$container) {
+                // Pega a posição X do elemento de data
+                const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                const text_width = today_element.getBBox().width;
+                // Centraliza a data de hoje na visualização do container
+                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+            }
+
+            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+            const ganttContainer = document.querySelector('#gantt-pedidos');
+            const header = ganttContainer.querySelector('.grid-header');
+            if (ganttContainer && header) {
+                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                // movendo-o para o final do seu container SVG pai.
+                header.parentNode.appendChild(header);
+
+                ganttContainer.addEventListener('scroll', () => {
+                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                });
+            }
         }
     }
 
@@ -634,29 +772,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const ganttTasks = [];
         const moldOccupation = {};
 
-        // Group by mold and date
+        // Group dates by mold
         data.forEach(item => {
             const key = `${item.Produto}-${item.Braço}`;
             const date = item["Data Prevista"];
             
+            if (!date) return; // Skip items without a date
+
             if (!moldOccupation[key]) {
                 moldOccupation[key] = {};
             }
-            
-            if (!moldOccupation[key][date]) {
-                moldOccupation[key][date] = {
-                    start: date,
-                    end: date,
-                    quantity: 0
-                };
-            }
-            
-            moldOccupation[key][date].quantity += item["Quantidade Programada"];
+            moldOccupation[key][date] = true; // Mark date as occupied
         });
 
         // Convert to Gantt format
         Object.keys(moldOccupation).forEach((key, index) => {
             let dates = Object.keys(moldOccupation[key]);
+
+            if (dates.length === 0) return;
 
             // Sort dates chronologically
             dates.sort((a, b) => {
@@ -664,21 +797,19 @@ document.addEventListener("DOMContentLoaded", () => {
                 const [dayB, monthB, yearB] = b.split('/');
                 return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
             });
-
-            if (dates.length > 0) {
-                const startDate = convertDateFormat(dates[0]);
-                const endDateParts = dates[dates.length - 1].split('/');
-                const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
-                endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
-                
-                ganttTasks.push({
-                    id: `mold-${index}`,
-                    name: key,
-                    start: startDate,
-                    end: formatDateForGantt(endDateObj),
-                    progress: 100
-                });
-            }
+            
+            const startDate = convertDateFormat(dates[0]);
+            const endDateParts = dates[dates.length - 1].split('/');
+            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+            
+            ganttTasks.push({
+                id: `mold-${index}`,
+                name: key,
+                start: startDate,
+                end: formatDateForGantt(endDateObj),
+                progress: 100
+            });
         });
 
         return ganttTasks;
@@ -688,27 +819,24 @@ document.addEventListener("DOMContentLoaded", () => {
         const ganttTasks = [];
         const orderProgress = {};
 
-        // Group by order
+        // Group dates by order
         data.forEach(item => {
-            const orderId = item.Pedido;
+            const key = `${item.Pedido}-${item.Produto}`; // Use a composite key for robustness
             const date = item["Data Prevista"];
             
-            if (!orderProgress[orderId]) {
-                orderProgress[orderId] = {};
+            if (!date) return; // Skip items without a date
+
+            if (!orderProgress[key]) {
+                orderProgress[key] = {};
             }
-            
-            if (!orderProgress[orderId][date]) {
-                orderProgress[orderId][date] = {
-                    quantity: 0
-                };
-            }
-            
-            orderProgress[orderId][date].quantity += item["Quantidade Programada"];
+            orderProgress[key][date] = true; // Mark date as part of the order's timeline
         });
 
         // Convert to Gantt format
-        Object.keys(orderProgress).forEach((orderId, index) => {
-            let dates = Object.keys(orderProgress[orderId]); // Get unique dates from keys
+        Object.keys(orderProgress).forEach((key, index) => {
+            let dates = Object.keys(orderProgress[key]); // Get unique dates from keys
+
+            if (dates.length === 0) return;
 
             // Sort dates chronologically
             dates.sort((a, b) => {
@@ -716,21 +844,25 @@ document.addEventListener("DOMContentLoaded", () => {
                 const [dayB, monthB, yearB] = b.split('/');
                 return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
             });
+            
+            const startDate = convertDateFormat(dates[0]);
+            const endDateParts = dates[dates.length - 1].split('/');
+            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+            
+            // Add custom classes for styling based on order type
+            const orderId = key.split('-')[0];
+            const isStockOrder = ["9999997", "9999998", "9999999"].includes(String(orderId));
+            const customClass = isStockOrder ? 'bar-stock' : 'bar-order';
 
-            if (dates.length > 0) {
-                const startDate = convertDateFormat(dates[0]);
-                const endDateParts = dates[dates.length - 1].split('/');
-                const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
-                endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
-                
-                ganttTasks.push({
-                    id: `order-${index}`,
-                    name: `Pedido ${orderId}`,
-                    start: startDate,
-                    end: formatDateForGantt(endDateObj),
-                    progress: 100
-                });
-            }
+            ganttTasks.push({
+                id: `order-${index}`,
+                name: `Pedido ${key}`,
+                start: startDate,
+                end: formatDateForGantt(endDateObj),
+                progress: 100,
+                custom_class: customClass
+            });
         });
 
         return ganttTasks;
@@ -770,7 +902,10 @@ document.addEventListener("DOMContentLoaded", () => {
             const ganttContainer = document.getElementById('gantt-moldes');
             // Check if the container is empty and we have data
             if (ganttContainer.innerHTML.trim() === '' && dadosOriginais) {
-                createGanttCharts(dadosOriginais);
+                // Use a timeout to ensure the container is visible and rendered before creating the chart
+                setTimeout(() => {
+                    createGanttCharts(dadosOriginais);
+                }, 100);
             }
         }
     }
@@ -786,9 +921,80 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
+    // Carrega os dados principais do dashboard (KPIs e histórico)
     function loadDashboardData() {
-        // Load recent history for dashboard
+        loadDashboardKPIs();
+        loadComparisonGantt();
         loadHistoricoRecente();
+    }
+
+    // Carrega os KPIs buscando o último planejamento
+    async function loadDashboardKPIs() {
+        try {
+            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
+            const result = await response.json();
+
+            if (response.ok && result.ultimo_planejamento) {
+                updateDashboardKPIs(result.ultimo_planejamento);
+            } else {
+                // Se não houver histórico, zera os KPIs
+                updateDashboardKPIs({}); 
+            }
+        } catch (error) {
+            console.error('Erro ao carregar KPIs do dashboard:', error);
+            updateDashboardKPIs({}); // Zera em caso de erro
+        }
+    }
+
+    async function loadComparisonGantt() {
+        try {
+            const response = await fetch('/api/gantt/gantt_comparacao_atrasos');
+            const result = await response.json();
+
+            const container = document.getElementById('gantt-comparacao-atrasos');
+            container.innerHTML = ''; // Limpa a mensagem de "carregando"
+
+            if (response.ok && result.gantt_data && result.gantt_data.length > 0) {
+                createComparisonGantt(result.gantt_data);
+            } else {
+                container.innerHTML = `<p class="text-gray-400">${result.message || 'Não há dados de atraso para exibir.'}</p>`;
+            }
+        } catch (error) {
+            console.error('Erro ao carregar Gantt de comparação:', error);
+            document.getElementById('gantt-comparacao-atrasos').innerHTML = '<p class="text-red-400">Erro ao carregar análise de atrasos.</p>';
+        }
+    }
+
+    function createComparisonGantt(ganttData) {
+        if (ganttData.length > 0) {
+            const gantt = new Gantt("#gantt-comparacao-atrasos", ganttData, {
+                header_height: 50,
+                column_width: 30,
+                step: 24,
+                view_modes: ['Day', 'Week', 'Month'],
+                bar_height: 20,
+                bar_corner_radius: 3,
+                padding: 18,
+                view_mode: 'Week',
+                date_format: 'DD/MM/YYYY',
+                custom_popup_html: (task) => `
+                    <div class="p-2 bg-gray-800 text-white rounded-md shadow-lg">
+                        <div class="font-bold">${task.name}</div>
+                        <p>Início: ${new Date(task._start).toLocaleDateString('pt-BR')}</p>
+                        <p>Fim: ${new Date(task._end).toLocaleDateString('pt-BR')}</p>
+                    </div>`
+            });
+
+            // Lógica para cabeçalho fixo
+            const ganttContainer = document.querySelector('#gantt-comparacao-atrasos');
+            const header = ganttContainer.querySelector('.grid-header');
+            if (ganttContainer && header) {
+                header.parentNode.appendChild(header);
+                ganttContainer.addEventListener('scroll', () => {
+                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                });
+            }
+        }
     }
 
     async function loadHistoricoRecente() {
@@ -994,22 +1200,51 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function updateDashboardKPIs(data) {
-        if (data.programacao_data) {
-            const pedidos = new Set(data.programacao_data.map(item => item.Pedido)).size;
-            document.getElementById('kpi-pedidos').textContent = pedidos;
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
+    
+        // Card: Total de Pedidos
+        const pedidos = data.programacao_data ? new Set(data.programacao_data.map(item => item.Pedido)).size : 0;
+        document.getElementById('kpi-pedidos').textContent = pedidos.toLocaleString('pt-BR');
+    
+        // Card: Total de Itens para Pedidos (clientes)
+        const customerItems = data.programacao_data ? data.programacao_data
+            .filter(item => !stockOrderIds.includes(String(item.Pedido)))
+            .reduce((sum, item) => sum + item["Quantidade Programada"], 0) : 0;
+        document.getElementById('kpi-itens-pedidos').textContent = customerItems.toLocaleString('pt-BR');
+    
+        // Card: Itens para Estoque
+        const stockItems = data.programacao_data ? data.programacao_data
+            .filter(item => stockOrderIds.includes(String(item.Pedido)))
+            .reduce((sum, item) => sum + item["Quantidade Programada"], 0) : 0;
+        document.getElementById('kpi-itens-estoque').textContent = stockItems.toLocaleString('pt-BR');
+    
+        // Card: Produtos Sem Molde
+        const semMolde = data.necessidade_sem_moldes_data ? data.necessidade_sem_moldes_data.length : 0;
+        document.getElementById('kpi-criticos').textContent = semMolde.toLocaleString('pt-BR');
+    
+        // Card: Moldes Ociosos
+        const ociosos = data.moldes_ociosos_data ? data.moldes_ociosos_data.length : 0;
+        document.getElementById('kpi-ociosos').textContent = ociosos.toLocaleString('pt-BR');
+    
+        // Card: Taxa de Ocupação
+        let taxaOcupacao = '-';
+        if (data.programacao_data && data.moldes_ociosos_data && data.dias_programacao > 0) {
+            const moldesUsados = new Set(data.programacao_data.map(item => item.Produto));
+            const moldesOciosos = new Set(data.moldes_ociosos_data.map(item => item.Nome));
+            const totalMoldes = new Set([...moldesUsados, ...moldesOciosos]).size;
+    
+            if (totalMoldes > 0) {
+                const totalDiasDisponiveis = totalMoldes * data.dias_programacao;
+                const diasDeUsoEfetivo = new Set(data.programacao_data.map(item => `${item.Produto}|${item['Data Prevista']}`)).size;
+    
+                if (totalDiasDisponiveis > 0) {
+                    taxaOcupacao = ((diasDeUsoEfetivo / totalDiasDisponiveis) * 100).toFixed(1).replace('.', ',') + '%';
+                }
+            }
         }
-
-        if (data.moldes_ociosos_data) {
-            document.getElementById('kpi-ociosos').textContent = data.moldes_ociosos_data.length;
-        }
-
-        if (data.necessidade_sem_moldes_data) {
-            document.getElementById('kpi-criticos').textContent = data.necessidade_sem_moldes_data.length;
-        }
-
-        document.getElementById('kpi-ocupacao').textContent = '85%'; // Calculate based on actual data
+        document.getElementById('kpi-ocupacao').textContent = taxaOcupacao;
     }
-
+    
     async function carregarUltimoPlanejamento() {
         showLoading();
         try {
@@ -1027,6 +1262,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             showResults(latest);
             document.getElementById('results-tabs').classList.remove('hidden');
+            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
             
             dadosOriginais = latest;
 
@@ -1063,6 +1299,7 @@ document.addEventListener("DOMContentLoaded", () => {
             
             showResults(result);
             document.getElementById('results-tabs').classList.remove('hidden');
+            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
             
             dadosOriginais = result;
 
