@@ -1,4 +1,4 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, send_file
 import pandas as pd
 from datetime import datetime, timedelta
 from pymongo import MongoClient, DESCENDING
@@ -7,6 +7,12 @@ import os
 from dotenv import load_dotenv
 import oracledb
 from pathlib import Path
+from io import BytesIO
+from reportlab.lib.pagesizes import letter, landscape
+from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, Spacer, PageBreak
+from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
+from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
+from reportlab.lib import colors
 
 # Garante que o .env na raiz do projeto seja carregado,
 # independentemente de onde o script é executado.
@@ -307,6 +313,122 @@ def get_razao_social(nunota):
         razao_social = "Erro de conexão DB"
     return razao_social
 
+def build_pdf_report(programacao_data, historico_atrasos):
+    """
+    Constrói um relatório detalhado em PDF a partir dos dados de uma programação.
+    """
+    buffer = BytesIO()
+    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+    
+    styles = getSampleStyleSheet()
+    styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
+    styles.add(ParagraphStyle(name='Right', alignment=TA_RIGHT))
+    styles.add(ParagraphStyle(name='Left', alignment=TA_LEFT))
+    styles.add(ParagraphStyle(name='TableHeader', fontSize=8, fontName='Helvetica-Bold', alignment=TA_CENTER, textColor=colors.whitesmoke))
+    styles.add(ParagraphStyle(name='TableCell', fontSize=7, fontName='Helvetica'))
+    
+    elements = []
+    
+    # Título
+    title = "Relatório de Planejamento de Produção"
+    elements.append(Paragraph(title, styles['h1']))
+    
+    timestamp = programacao_data.get('timestamp').strftime('%d/%m/%Y %H:%M:%S')
+    elements.append(Paragraph(f"Programação de: {timestamp}", styles['Normal']))
+    elements.append(Spacer(1, 20))
+
+    # --- Resumo / KPIs ---
+    elements.append(Paragraph("Resumo do Planejamento", styles['h2']))
+    
+    prog_data = programacao_data.get("programacao_data", [])
+    ociosos_data = programacao_data.get("moldes_ociosos_data", [])
+    sem_molde_data = programacao_data.get("necessidade_sem_moldes_data", [])
+    stock_order_ids = ["9999997", "9999998", "9999999"]
+
+    total_pedidos = len(set(p['Pedido'] for p in prog_data)) if prog_data else 0
+    itens_pedidos = sum(p['Quantidade Programada'] for p in prog_data if str(int(p['Pedido'])) not in stock_order_ids) if prog_data else 0
+    itens_estoque = sum(p['Quantidade Programada'] for p in prog_data if str(int(p['Pedido'])) in stock_order_ids) if prog_data else 0
+    moldes_ociosos = len(ociosos_data) if ociosos_data else 0
+    produtos_sem_molde = len(sem_molde_data) if sem_molde_data else 0
+
+    kpi_data = [
+        [Paragraph('<b>Total de Pedidos</b>', styles['Left']), Paragraph(f"{total_pedidos:,}".replace(",", "."), styles['Right'])],
+        [Paragraph('<b>Itens para Pedidos</b>', styles['Left']), Paragraph(f"{itens_pedidos:,}".replace(",", "."), styles['Right'])],
+        [Paragraph('<b>Itens para Estoque</b>', styles['Left']), Paragraph(f"{itens_estoque:,}".replace(",", "."), styles['Right'])],
+        [Paragraph('<b>Moldes Ociosos</b>', styles['Left']), Paragraph(f"{moldes_ociosos:,}".replace(",", "."), styles['Right'])],
+        [Paragraph('<b>Produtos Sem Molde</b>', styles['Left']), Paragraph(f"{produtos_sem_molde:,}".replace(",", "."), styles['Right'])],
+    ]
+    kpi_table = Table(kpi_data, colWidths=[200, 100])
+    kpi_table.setStyle(TableStyle([('GRID', (0, 0), (-1, -1), 1, colors.black), ('VALIGN', (0, 0), (-1, -1), 'MIDDLE')]))
+    elements.append(kpi_table)
+    elements.append(Spacer(1, 20))
+
+    # --- Histórico de Atrasos ---
+    if historico_atrasos:
+        elements.append(Paragraph("Histórico de Atrasos de Pedidos", styles['h2']))
+        atrasos_table_data = [
+            [Paragraph(h, styles['TableHeader']) for h in ['Data Análise', 'Pedido', 'Cliente', 'Dias Atraso', 'Motivo']]
+        ]
+        for item in historico_atrasos:
+            data_analise = item.get('timestamp_analise').strftime('%d/%m/%Y %H:%M') if item.get('timestamp_analise') else 'N/A'
+            row = [
+                data_analise,
+                item.get('pedido', ''),
+                item.get('cliente', ''),
+                item.get('dias_atraso', ''),
+                item.get('motivo_atraso', 'Não atribuído')
+            ]
+            atrasos_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
+        
+        atrasos_table = Table(atrasos_table_data, colWidths=[90, 70, 250, 60, 180])
+        atrasos_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
+            ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('VALIGN', (0, 0), (-1, -1), 'MIDDLE'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black),
+            ('BACKGROUND', (0, 1), (-1, -1), colors.lightpink)
+        ]))
+        elements.append(atrasos_table)
+        elements.append(Spacer(1, 20))
+
+    # --- Pontos de Atenção ---
+    if ociosos_data or sem_molde_data:
+        elements.append(PageBreak())
+        elements.append(Paragraph("Pontos de Atenção", styles['h2']))
+
+    if ociosos_data:
+        elements.append(Paragraph("Moldes Ociosos", styles['h3']))
+        ociosos_table_data = [[Paragraph(h, styles['TableHeader']) for h in ['Nome', 'Quantidade', 'Rodada Ociosa', 'Braço']]]
+        for item in ociosos_data:
+            row = [item.get('Nome', ''), item.get('Quantidade', ''), item.get('Rodada Ociosa', ''), item.get('Braço', '')]
+            ociosos_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
+        
+        ociosos_table = Table(ociosos_table_data, colWidths=[250, 100, 100, 100])
+        ociosos_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.orange), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black), ('BACKGROUND', (0, 1), (-1, -1), colors.lightyellow)
+        ]))
+        elements.append(ociosos_table)
+        elements.append(Spacer(1, 20))
+
+    if sem_molde_data:
+        elements.append(Paragraph("Necessidade Sem Moldes", styles['h3']))
+        sem_molde_table_data = [[Paragraph(h, styles['TableHeader']) for h in ['Nome', 'Qtd. Faltante', 'Qtd. Cadastrada']]]
+        for item in sem_molde_data:
+            row = [item.get('Nome', ''), item.get('Quantidade', ''), item.get('Qtd. Moldes Cadastrados', '')]
+            sem_molde_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
+        
+        sem_molde_table = Table(sem_molde_table_data, colWidths=[250, 150, 150])
+        sem_molde_table.setStyle(TableStyle([
+            ('BACKGROUND', (0, 0), (-1, 0), colors.red), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
+            ('GRID', (0, 0), (-1, -1), 1, colors.black), ('BACKGROUND', (0, 1), (-1, -1), colors.pink)
+        ]))
+        elements.append(sem_molde_table)
+
+    doc.build(elements)
+    buffer.seek(0)
+    return buffer
+
 @gantt_bp.route("/alertas_inteligentes", methods=["POST"])
 def gerar_alertas_inteligentes():
     """
@@ -487,6 +609,8 @@ def gantt_comparacao_atrasos():
         # 5. Formatar para o gráfico de Gantt e Tabela de Detalhes
         gantt_data = []
         table_data = []
+        prog_recente_data = prog_recente.get("programacao_data", [])
+
         for item in top_atrasos:
             pedido_int = int(item['pedido'])
             
@@ -506,12 +630,36 @@ def gantt_comparacao_atrasos():
                 "progress": 100, "custom_class": "bar-comparison-new"
             })
 
+            # Identificar os itens específicos que causaram o atraso
+            data_fim_anterior_dt = datetime.strptime(item["anterior"]["data_conclusao"], "%d/%m/%Y")
+            itens_do_pedido_recente = [
+                i for i in prog_recente_data if int(i.get("Pedido", 0)) == pedido_int
+            ]
+            
+            itens_causadores = []
+            for i in itens_do_pedido_recente:
+                data_item_recente_dt = datetime.strptime(i["Data Prevista"], "%d/%m/%Y")
+                if data_item_recente_dt > data_fim_anterior_dt:
+                    dias_atraso_item = (data_item_recente_dt - data_fim_anterior_dt).days
+                    if dias_atraso_item > 0:
+                        itens_causadores.append({
+                            "produto": i.get("Produto"),
+                            "codprod": i.get("CODPROD"),
+                            "cor": i.get("Cor"),
+                            "data_prevista": i.get("Data Prevista"),
+                            "dias_atraso_item": dias_atraso_item
+                        })
+            
+            # Ordenar por maior impacto
+            itens_causadores.sort(key=lambda x: x['dias_atraso_item'], reverse=True)
+
             # Buscar nome do cliente e adicionar dados para a tabela
             nome_cliente = get_razao_social(pedido_int)
             table_data.append({
                 "pedido": pedido_int,
                 "cliente": nome_cliente,
-                "dias_atraso": item["diferenca_dias"]
+                "dias_atraso": item["diferenca_dias"],
+                "itens_causadores": itens_causadores
             })
 
         # Salvar histórico de atrasos no banco
@@ -527,6 +675,7 @@ def gantt_comparacao_atrasos():
                     "pedido": item["pedido"],
                     "cliente": item["cliente"],
                     "dias_atraso": item["dias_atraso"],
+                    "itens_causadores": item.get("itens_causadores", []),
                     "programacao_recente_id": prog_recente_id,
                     "programacao_anterior_id": prog_anterior_id
                 })
@@ -652,6 +801,35 @@ def atribuir_motivo_atraso(atraso_id):
             return jsonify({"error": "Registro de atraso não encontrado"}), 404
     except Exception as e:
         return jsonify({"error": f"Erro ao atribuir motivo: {str(e)}"}), 500
+
+@gantt_bp.route("/gerar_relatorio_pdf/<programacao_id>", methods=["POST"])
+def gerar_relatorio_pdf(programacao_id):
+    """
+    Gera um relatório detalhado em PDF para uma programação específica.
+    """
+    try:
+        if not ObjectId.is_valid(programacao_id):
+            return jsonify({"error": "ID de programação inválido"}), 400
+
+        programacao = programacao_results_collection.find_one({"_id": ObjectId(programacao_id)})
+        if not programacao:
+            return jsonify({"error": "Programação não encontrada"}), 404
+
+        # Buscar histórico de atrasos onde esta programação foi a mais recente
+        historico_atrasos = list(atrasos_historico_collection.find(
+            {"programacao_recente_id": ObjectId(programacao_id)}
+        ).sort("timestamp_analise", DESCENDING))
+
+        pdf_buffer = build_pdf_report(programacao, historico_atrasos)
+        
+        return send_file(
+            pdf_buffer,
+            as_attachment=True,
+            download_name=f"relatorio_programacao_{programacao_id}.pdf",
+            mimetype='application/pdf'
+        )
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar relatório PDF: {str(e)}"}), 500
 
 @gantt_bp.route("/obter_ultimo_planejamento", methods=["GET"])
 def obter_ultimo_planejamento():

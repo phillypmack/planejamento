@@ -60,6 +60,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Cadastros
         document.getElementById('adicionar-motivo-btn').addEventListener('click', adicionarMotivo);
+
+        // Relatórios
+        document.getElementById('gerar-pdf-btn').addEventListener('click', gerarRelatorioPDF);
     }
 
     function showSection(sectionName) {
@@ -77,6 +80,9 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         if (sectionName === 'cadastros') {
             loadMotivosOcorrencia();
+        }
+        if (sectionName === 'relatorios') {
+            loadHistoricoParaRelatorios();
         }
     }
 
@@ -1442,35 +1448,77 @@ document.addEventListener("DOMContentLoaded", () => {
                     <thead class="text-xs text-gray-200 uppercase bg-gray-600">
                         <tr>
                             <th class="px-4 py-3">Data da Análise</th>
-                            <th class="px-4 py-3">Pedido</th>
-                            <th class="px-4 py-3">Cliente</th>
+                            <th class="px-4 py-3">Número do Pedido</th>
+                            <th class="px-4 py-3">Nome do Cliente</th>
                             <th class="px-4 py-3">Dias de Atraso</th>
                             <th class="px-4 py-3">Motivo da Ocorrência</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${atrasosResult.historico_atrasos.map(item => `
-                            <tr class="border-b border-gray-700 hover:bg-gray-700">
-                                <td class="px-4 py-2">${new Date(item.timestamp_analise).toLocaleString('pt-BR')}</td>
-                                <td class="px-4 py-2">${item.pedido}</td>
-                                <td class="px-4 py-2">${item.cliente}</td>
-                                <td class="px-4 py-2 text-red-400 font-semibold">${item.dias_atraso}</td>
-                                <td class="px-4 py-2">
-                                    ${item.motivo_atraso 
-                                        ? `<span class="font-semibold text-yellow-400">${item.motivo_atraso}</span>`
-                                        : `
-                                        <div class="flex items-center space-x-2">
-                                            <select class="motivo-select bg-gray-700 text-white text-xs rounded p-1" data-atraso-id="${item._id}">
-                                                <option value="">Selecione...</option>
-                                                ${motivosOptions}
-                                            </select>
-                                            <button class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-xs rounded" onclick="atribuirMotivo(this)">Salvar</button>
-                                        </div>
-                                        `
-                                    }
-                                </td>
-                            </tr>
-                        `).join('')}
+                        ${atrasosResult.historico_atrasos.map(item => {
+                            const detailsId = `atraso-details-${item._id}`;
+                            const hasDetails = item.itens_causadores && item.itens_causadores.length > 0;
+
+                            const mainRow = `
+                                <tr class="border-b border-gray-700 hover:bg-gray-700 ${hasDetails ? 'cursor-pointer' : ''}" ${hasDetails ? `onclick="toggleAtrasoDetails('${detailsId}')"` : ''}>
+                                    <td class="px-4 py-2">
+                                        ${hasDetails ? `<i id="icon-${detailsId}" class="fas fa-chevron-right mr-2 transition-transform duration-200"></i>` : '<span class="inline-block w-6"></span>'}
+                                        ${new Date(item.timestamp_analise).toLocaleString('pt-BR')}
+                                    </td>
+                                    <td class="px-4 py-2">${item.pedido}</td>
+                                    <td class="px-4 py-2">${item.cliente}</td>
+                                    <td class="px-4 py-2 text-red-400 font-semibold">${item.dias_atraso}</td>
+                                    <td class="px-4 py-2">
+                                        ${item.motivo_atraso 
+                                            ? `<span class="font-semibold text-yellow-400">${item.motivo_atraso}</span>`
+                                            : `
+                                            <div class="flex items-center space-x-2">
+                                                <select class="motivo-select bg-gray-700 text-white text-xs rounded p-1" data-atraso-id="${item._id}">
+                                                    <option value="">Selecione...</option>
+                                                    ${motivosOptions}
+                                                </select>
+                                                <button class="bg-green-600 hover:bg-green-700 text-white px-2 py-1 text-xs rounded" onclick="atribuirMotivo(this)">Salvar</button>
+                                            </div>
+                                            `
+                                        }
+                                    </td>
+                                </tr>
+                            `;
+
+                            let detailsRow = '';
+                            if (hasDetails) {
+                                const detailsContent = item.itens_causadores.map(causa => `
+                                    <tr class="bg-gray-900 hover:bg-gray-800">
+                                        <td class="px-8 py-2">${causa.produto} (Cód: ${causa.codprod || 'N/A'})</td>
+                                        <td class="px-8 py-2">${causa.cor || 'N/A'}</td>
+                                        <td class="px-8 py-2">${causa.data_prevista}</td>
+                                        <td class="px-8 py-2 text-red-500">${causa.dias_atraso_item} dias</td>
+                                    </tr>
+                                `).join('');
+
+                                detailsRow = `
+                                    <tr id="${detailsId}" class="hidden">
+                                        <td colspan="5" class="p-0 bg-gray-800">
+                                            <div class="p-4">
+                                                <h5 class="text-md font-semibold text-gray-300 mb-2 ml-2">Itens que impactaram o prazo:</h5>
+                                                <table class="min-w-full text-xs text-left text-gray-400">
+                                                    <thead class="bg-gray-700">
+                                                        <tr>
+                                                            <th class="px-8 py-2">Produto</th>
+                                                            <th class="px-8 py-2">Cor</th>
+                                                            <th class="px-8 py-2">Nova Data Prevista</th>
+                                                            <th class="px-8 py-2">Atraso Gerado pelo Item</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>${detailsContent}</tbody>
+                                                </table>
+                                            </div>
+                                        </td>
+                                    </tr>
+                                `;
+                            }
+                            return mainRow + detailsRow;
+                        }).join('')}
                     </tbody>
                 `;
                 container.appendChild(table);
@@ -1555,4 +1603,76 @@ document.addEventListener("DOMContentLoaded", () => {
             hideLoading();
         }
     };
+
+    window.toggleAtrasoDetails = function(detailsId) {
+        const detailsRow = document.getElementById(detailsId);
+        const icon = document.getElementById(`icon-${detailsId}`);
+        if (detailsRow && icon) {
+            detailsRow.classList.toggle('hidden');
+            icon.classList.toggle('fa-chevron-right');
+            icon.classList.toggle('fa-chevron-down');
+        }
+    };
+
+    async function loadHistoricoParaRelatorios() {
+        const select = document.getElementById('relatorio-programacao-select');
+        const button = document.getElementById('gerar-pdf-btn');
+        select.innerHTML = '<option>Carregando histórico...</option>';
+        button.disabled = true;
+    
+        try {
+            const response = await fetch('/api/programacao/obter_historico');
+            const result = await response.json();
+    
+            if (response.ok && result.historico && result.historico.length > 0) {
+                select.innerHTML = '<option value="">Selecione uma programação</option>';
+                result.historico.forEach(item => {
+                    const date = new Date(item.timestamp).toLocaleString('pt-BR');
+                    const option = document.createElement('option');
+                    option.value = item._id;
+                    option.textContent = `${date} - Braço: ${item.braco_selecionado || 'Todos'}`;
+                    select.appendChild(option);
+                });
+                select.onchange = () => {
+                    button.disabled = select.value === '';
+                };
+            } else {
+                select.innerHTML = '<option>Nenhum histórico encontrado</option>';
+            }
+        } catch (error) {
+            console.error('Erro ao carregar histórico para relatórios:', error);
+            select.innerHTML = '<option>Erro ao carregar histórico</option>';
+        }
+    }
+    
+    async function gerarRelatorioPDF() {
+        const select = document.getElementById('relatorio-programacao-select');
+        const programacaoId = select.value;
+    
+        if (!programacaoId) {
+            alert('Por favor, selecione uma programação para gerar o relatório.');
+            return;
+        }
+    
+        showLoading();
+        const button = document.getElementById('gerar-pdf-btn');
+        button.disabled = true;
+        button.innerHTML = '<i class="fas fa-spinner fa-spin mr-2"></i>Gerando...';
+    
+        try {
+            const response = await fetch(`/api/gantt/gerar_relatorio_pdf/${programacaoId}`, { method: 'POST' });
+            if (!response.ok) { throw new Error('Erro no servidor ao gerar o PDF.'); }
+    
+            const blob = await response.blob();
+            const url = window.URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.style.display = 'none'; a.href = url; a.download = `relatorio_programacao_${programacaoId}.pdf`;
+            document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
+        } catch (error) {
+            alert(`Erro ao gerar relatório: ${error.message}`);
+        } finally {
+            hideLoading();
+            button.disabled = false; button.innerHTML = '<i class="fas fa-file-pdf mr-2"></i>Gerar PDF';
+        }
+    }
 });

@@ -545,9 +545,17 @@
 
             <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div class="bg-gray-800 rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Relatório de Produção</h3>
-                    <p class="text-gray-400 mb-4">Relatório completo com gráficos e tabelas</p>
-                    <button class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg">
+                    <h3 class="text-xl font-semibold mb-4">Relatório de Produção Detalhado</h3>
+                    <p class="text-gray-400 mb-4">Selecione uma programação do histórico para gerar um relatório completo em PDF com KPIs, tabelas e pontos de atenção.</p>
+                    
+                    <div class="mb-4">
+                        <label for="relatorio-programacao-select" class="block mb-2 text-sm font-medium text-gray-300">Selecione a Programação:</label>
+                        <select id="relatorio-programacao-select" class="bg-gray-700 border border-gray-600 text-white text-sm rounded-lg focus:ring-purple-500 focus:border-purple-500 block w-full p-2.5">
+                            <option>Carregando histórico...</option>
+                        </select>
+                    </div>
+
+                    <button id="gerar-pdf-btn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg w-full disabled:opacity-50 disabled:cursor-not-allowed" disabled>
                         <i class="fas fa-file-pdf mr-2"></i>
                         Gerar PDF
                     </button>
@@ -555,8 +563,8 @@
                 
                 <div class="bg-gray-800 rounded-lg p-6">
                     <h3 class="text-xl font-semibold mb-4">Análise de Tendências</h3>
-                    <p class="text-gray-400 mb-4">Evolução de métricas ao longo do tempo</p>
-                    <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg">
+                    <p class="text-gray-400 mb-4">Evolução de métricas ao longo do tempo (Em desenvolvimento)</p>
+                    <button class="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg disabled:opacity-50" disabled>
                         <i class="fas fa-chart-line mr-2"></i>
                         Visualizar
                     </button>

@@ -24,3 +24,4 @@ openpyxl
 oracledb
 dotenv
 pymongo
+reportlab
