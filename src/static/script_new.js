@@ -1052,9 +1052,14 @@ document.addEventListener("DOMContentLoaded", () => {
                                 <span class="text-gray-400 ml-4">Braço: ${item.braco_selecionado || 'Todos'}</span>
                             </div>
                         </div>
-                        <button class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700" onclick="carregarProgramacaoHistorico('${item._id}')">
-                            Carregar
-                        </button>
+                        <div class="flex items-center space-x-2">
+                            <button class="px-3 py-1 bg-purple-600 text-white rounded hover:bg-purple-700" onclick="carregarProgramacaoHistorico('${item._id}')">
+                                Carregar
+                            </button>
+                            <button class="px-3 py-1 bg-red-600 text-white rounded hover:bg-red-700" onclick="excluirProgramacaoHistorico('${item._id}')">
+                                Excluir
+                            </button>
+                        </div>
                     `;
                     container.appendChild(div);
                 });
@@ -1305,6 +1310,36 @@ document.addEventListener("DOMContentLoaded", () => {
 
         } catch (error) {
             alert(`Erro ao carregar planejamento do histórico: ${error.message}`);
+        } finally {
+            hideLoading();
+        }
+    };
+
+    window.excluirProgramacaoHistorico = async function(id) {
+        if (!confirm('Tem certeza que deseja excluir esta programação? Esta ação não pode ser desfeita.')) {
+            return;
+        }
+    
+        showLoading();
+        try {
+            const response = await fetch(`/api/gantt/excluir_planejamento/${id}`, {
+                method: 'DELETE'
+            });
+    
+            const result = await response.json();
+    
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao excluir planejamento');
+            }
+    
+            alert(result.message); // Exibe a mensagem de sucesso do backend
+    
+            // Recarrega os dados para refletir a exclusão
+            loadHistorico();
+            loadDashboardData(); // Atualiza KPIs, histórico recente e Gantt de comparação
+    
+        } catch (error) {
+            alert(`Erro: ${error.message}`);
         } finally {
             hideLoading();
         }

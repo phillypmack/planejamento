@@ -131,20 +131,22 @@ def analise_gantt_pedidos():
                 data_inicio = datetime.strptime(datas_unicas[0], "%d/%m/%Y")
                 data_fim = datetime.strptime(datas_unicas[-1], "%d/%m/%Y")
                 
+                pedido_int = int(pedido)
+
                 # Determinar cor baseada no tipo de pedido
                 cor_classe = "gantt-pedido-normal"
-                if str(pedido) in ["9999997", "9999998", "9999999"]:
+                if str(pedido_int) in ["9999997", "9999998", "9999999"]:
                     cor_classe = "gantt-pedido-estoque"
                 
                 gantt_data.append({
-                    "id": f"pedido_{pedido}",
-                    "name": f"Pedido {pedido} - {info['produto']}",
+                    "id": f"pedido_{pedido_int}",
+                    "name": f"Pedido {pedido_int} - {info['produto']}",
                     "start": data_inicio.strftime("%Y-%m-%d"),
                     "end": (data_fim + timedelta(days=1)).strftime("%Y-%m-%d"),
                     "progress": 100,
                     "custom_class": cor_classe,
                     "quantidade": info["quantidade_total"],
-                    "tipo": "estoque" if str(pedido) in ["9999997", "9999998", "9999999"] else "pedido"
+                    "tipo": "estoque" if str(pedido_int) in ["9999997", "9999998", "9999999"] else "pedido"
                 })
         
         return jsonify({
@@ -190,7 +192,7 @@ def comparar_programacoes():
             diferenca_dias = (data2 - data1).days
             
             comparacao.append({
-                "pedido": pedido,
+                "pedido": int(pedido),
                 "produto": conclusoes_prog1[pedido]["produto"],
                 "data_prog1": conclusoes_prog1[pedido]["data_conclusao"],
                 "data_prog2": conclusoes_prog2[pedido]["data_conclusao"],
@@ -291,7 +293,7 @@ def gerar_alertas_inteligentes():
         
         # Alerta 1: Pedidos prioritários com atraso
         pedidos_prioritarios = [item for item in programacao_data 
-                              if str(item["Pedido"]) not in ["9999997", "9999998", "9999999"]]
+                              if str(int(item["Pedido"])) not in ["9999997", "9999998", "9999999"]]
         
         if pedidos_prioritarios:
             # Verificar se há pedidos com datas muito distantes
@@ -415,8 +417,15 @@ def gantt_comparacao_atrasos():
         # 3. Comparar as datas e encontrar atrasos
         comparacao = []
         pedidos_comuns = set(conclusoes_recente.keys()) & set(conclusoes_anterior.keys())
+
+        # Define os pedidos de estoque a serem excluídos da análise de atraso
+        stock_order_ids = ["9999997", "9999998", "9999999"]
+
+        # Filtra os pedidos comuns para remover os de estoque
+        # Converte para int para remover casas decimais (ex: 9999997.0 -> 9999997) antes de comparar
+        pedidos_filtrados = [p for p in pedidos_comuns if str(int(p)) not in stock_order_ids]
         
-        for pedido in pedidos_comuns:
+        for pedido in pedidos_filtrados:
             data_fim_anterior = datetime.strptime(conclusoes_anterior[pedido]["data_conclusao"], "%d/%m/%Y")
             data_fim_recente = datetime.strptime(conclusoes_recente[pedido]["data_conclusao"], "%d/%m/%Y")
             
@@ -438,12 +447,12 @@ def gantt_comparacao_atrasos():
         # 5. Formatar para o gráfico de Gantt
         gantt_data = []
         for item in top_atrasos:
-            pedido_str = str(item['pedido'])
+            pedido_int = int(item['pedido'])
             
             start_anterior = datetime.strptime(item["anterior"]["data_inicio"], "%d/%m/%Y")
             end_anterior = datetime.strptime(item["anterior"]["data_conclusao"], "%d/%m/%Y")
             gantt_data.append({
-                "id": f"comp_{pedido_str}_anterior", "name": f"Pedido {pedido_str} (Anterior)",
+                "id": f"comp_{pedido_int}_anterior", "name": f"Pedido {pedido_int} (Anterior)",
                 "start": start_anterior.strftime("%Y-%m-%d"), "end": (end_anterior + timedelta(days=1)).strftime("%Y-%m-%d"),
                 "progress": 100, "custom_class": "bar-comparison-old"
             })
@@ -451,7 +460,7 @@ def gantt_comparacao_atrasos():
             start_recente = datetime.strptime(item["recente"]["data_inicio"], "%d/%m/%Y")
             end_recente = datetime.strptime(item["recente"]["data_conclusao"], "%d/%m/%Y")
             gantt_data.append({
-                "id": f"comp_{pedido_str}_recente", "name": f"Pedido {pedido_str} (Recente)",
+                "id": f"comp_{pedido_int}_recente", "name": f"Pedido {pedido_int} (Recente)",
                 "start": start_recente.strftime("%Y-%m-%d"), "end": (end_recente + timedelta(days=1)).strftime("%Y-%m-%d"),
                 "progress": 100, "custom_class": "bar-comparison-new"
             })
@@ -460,6 +469,25 @@ def gantt_comparacao_atrasos():
 
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar Gantt de comparação de atrasos: {str(e)}"}), 500
+
+@gantt_bp.route("/excluir_planejamento/<programacao_id>", methods=["DELETE"])
+def excluir_planejamento(programacao_id):
+    """
+    Exclui um planejamento específico pelo seu ID.
+    """
+    try:
+        if not ObjectId.is_valid(programacao_id):
+            return jsonify({"error": "ID de programação inválido"}), 400
+
+        result = programacao_results_collection.delete_one({"_id": ObjectId(programacao_id)})
+        
+        if result.deleted_count == 1:
+            return jsonify({"message": "Planejamento excluído com sucesso"}), 200
+        else:
+            return jsonify({"error": "Planejamento não encontrado para exclusão"}), 404
+            
+    except Exception as e:
+        return jsonify({"error": f"Erro ao excluir planejamento: {str(e)}"}), 500
 
 @gantt_bp.route("/obter_ultimo_planejamento", methods=["GET"])
 def obter_ultimo_planejamento():
