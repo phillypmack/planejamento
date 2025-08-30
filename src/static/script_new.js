@@ -296,7 +296,9 @@ document.addEventListener("DOMContentLoaded", () => {
     function updateSummaryCards(data) {
         const pedidos = data.programacao_data ? new Set(data.programacao_data.map(item => item.Pedido)).size : 0;
         const ociosos = data.moldes_ociosos_data ? data.moldes_ociosos_data.length : 0;
-        const semMolde = data.necessidade_sem_moldes_data ? data.necessidade_sem_moldes_data.length : 0;
+        const semMolde = data.necessidade_sem_moldes_data
+            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0).length
+            : 0;
         
         // Cálculo da Taxa de Ocupação
         let taxaOcupacao = '0%';
@@ -382,8 +384,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
 
         // Check for products without molds
-        if (data.necessidade_sem_moldes_data && data.necessidade_sem_moldes_data.length > 0) {
-            const withoutMolds = data.necessidade_sem_moldes_data.length;
+        const necessidadeFiltrada = data.necessidade_sem_moldes_data
+            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0)
+            : [];
+
+        if (necessidadeFiltrada.length > 0) {
+            const withoutMolds = necessidadeFiltrada.length;
             alerts.push({
                 type: 'error',
                 icon: 'fa-exclamation-triangle',
@@ -664,10 +670,30 @@ document.addEventListener("DOMContentLoaded", () => {
         necessidadeTable.innerHTML = '';
         
         if (data.necessidade_sem_moldes_data) {
-            data.necessidade_sem_moldes_data.forEach(item => {
+            const necessidadeFiltrada = data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0);
+            
+            // Agrupar por produto e somar quantidades
+            const necessidadeAgrupada = necessidadeFiltrada.reduce((acc, item) => {
+                const produtoNome = item.Produto || item.Nome;
+                if (!acc[produtoNome]) {
+                    acc[produtoNome] = {
+                        Produto: produtoNome,
+                        Quantidade: 0,
+                        "Qtd. Moldes Cadastrados": item["Qtd. Moldes Cadastrados"]
+                    };
+                }
+                acc[produtoNome].Quantidade += item.Quantidade;
+                return acc;
+            }, {});
+
+            // Converter para array e ordenar
+            const listaAgrupada = Object.values(necessidadeAgrupada);
+            listaAgrupada.sort((a, b) => b.Quantidade - a.Quantidade);
+
+            listaAgrupada.forEach(item => {
                 const row = necessidadeTable.insertRow();
                 row.innerHTML = `
-                    <td class="px-4 py-2">${item.Nome}</td>
+                    <td class="px-4 py-2">${item.Produto}</td>
                     <td class="px-4 py-2">${item.Quantidade}</td>
                     <td class="px-4 py-2">${item["Qtd. Moldes Cadastrados"]}</td>
                 `;
@@ -1301,7 +1327,9 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('kpi-itens-estoque').textContent = stockItems.toLocaleString('pt-BR');
     
         // Card: Produtos Sem Molde
-        const semMolde = data.necessidade_sem_moldes_data ? data.necessidade_sem_moldes_data.length : 0;
+        const semMolde = data.necessidade_sem_moldes_data
+            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0).length
+            : 0;
         document.getElementById('kpi-criticos').textContent = semMolde.toLocaleString('pt-BR');
     
         // Card: Moldes Ociosos

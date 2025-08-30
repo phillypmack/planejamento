@@ -342,7 +342,11 @@ def build_pdf_report(programacao_data, historico_atrasos):
     
     prog_data = programacao_data.get("programacao_data", [])
     ociosos_data = programacao_data.get("moldes_ociosos_data", [])
-    sem_molde_data = programacao_data.get("necessidade_sem_moldes_data", [])
+    
+    # Filtra para não mostrar produtos com 0 moldes cadastrados
+    sem_molde_data_raw = programacao_data.get("necessidade_sem_moldes_data", [])
+    sem_molde_data = [item for item in sem_molde_data_raw if item.get("Qtd. Moldes Cadastrados", 0) > 0]
+
     stock_order_ids = ["9999997", "9999998", "9999999"]
 
     total_pedidos = len(set(p['Pedido'] for p in prog_data)) if prog_data else 0
@@ -366,6 +370,9 @@ def build_pdf_report(programacao_data, historico_atrasos):
     # --- Histórico de Atrasos ---
     if historico_atrasos:
         elements.append(Paragraph("Histórico de Atrasos de Pedidos", styles['h2']))
+        # Ordena por dias de atraso (decrescente)
+        historico_atrasos.sort(key=lambda x: x.get('dias_atraso', 0), reverse=True)
+
         atrasos_table_data = [
             [Paragraph(h, styles['TableHeader']) for h in ['Data Análise', 'Pedido', 'Cliente', 'Dias Atraso', 'Motivo']]
         ]
@@ -413,12 +420,29 @@ def build_pdf_report(programacao_data, historico_atrasos):
 
     if sem_molde_data:
         elements.append(Paragraph("Necessidade Sem Moldes", styles['h3']))
-        sem_molde_table_data = [[Paragraph(h, styles['TableHeader']) for h in ['Nome', 'Qtd. Faltante', 'Qtd. Cadastrada']]]
+        # Ordena por quantidade faltante (decrescente)
+        
+        # Agrupar por produto e somar quantidades
+        necessidade_agrupada = {}
         for item in sem_molde_data:
-            row = [item.get('Nome', ''), item.get('Quantidade', ''), item.get('Qtd. Moldes Cadastrados', '')]
+            produto_nome = item.get('Produto', item.get('Nome', ''))
+            if produto_nome not in necessidade_agrupada:
+                necessidade_agrupada[produto_nome] = {
+                    "Quantidade": 0,
+                    "Qtd. Moldes Cadastrados": item.get('Qtd. Moldes Cadastrados', 0)
+                }
+            necessidade_agrupada[produto_nome]["Quantidade"] += item.get('Quantidade', 0)
+
+        # Converter para lista e ordenar
+        lista_agrupada = [{"Produto": k, **v} for k, v in necessidade_agrupada.items()]
+        lista_agrupada.sort(key=lambda x: x.get('Quantidade', 0), reverse=True)
+
+        sem_molde_table_data = [[Paragraph(h, styles['TableHeader']) for h in ['Produto', 'Qtd. Faltante', 'Qtd. Cadastrada']]]
+        for item in lista_agrupada:
+            row = [item.get('Produto', ''), item.get('Quantidade', ''), item.get('Qtd. Moldes Cadastrados', '')]
             sem_molde_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
         
-        sem_molde_table = Table(sem_molde_table_data, colWidths=[250, 150, 150])
+        sem_molde_table = Table(sem_molde_table_data, colWidths=[350, 120, 120])
         sem_molde_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.red), ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
             ('GRID', (0, 0), (-1, -1), 1, colors.black), ('BACKGROUND', (0, 1), (-1, -1), colors.pink)
@@ -451,8 +475,10 @@ def gerar_alertas_inteligentes():
         # Analisar dados da programação
         programacao_data = programacao.get("programacao_data", [])
         moldes_ociosos_data = programacao.get("moldes_ociosos_data", [])
-        necessidade_sem_moldes_data = programacao.get("necessidade_sem_moldes_data", [])
         
+        necessidade_sem_moldes_data_raw = programacao.get("necessidade_sem_moldes_data", [])
+        necessidade_sem_moldes_data = [item for item in necessidade_sem_moldes_data_raw if item.get("Qtd. Moldes Cadastrados", 0) > 0]
+
         # Alerta 1: Pedidos prioritários com atraso
         pedidos_prioritarios = [item for item in programacao_data 
                               if str(int(item["Pedido"])) not in ["9999997", "9999998", "9999999"]]
