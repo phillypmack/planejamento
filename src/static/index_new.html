@@ -40,6 +40,7 @@
         }
 
         .bg-primary-light { background-color: var(--color-bg-light); }
+        .text-main { color: var(--color-text-main); }
         .text-secondary { color: var(--color-text-secondary); }
         .text-accent { color: var(--color-accent); }
         .border-accent { border-color: var(--color-accent); }
@@ -149,6 +150,47 @@
         .gantt .grid-header .lower-text {
             fill: var(--color-text-secondary) !important; /* Dias */
             font-size: 12px;
+        }
+
+        /* Gantt Chart Customizations for Dark Theme */
+        .gantt .grid-background {
+            fill: rgba(0, 0, 0, 0.5) !important; /* Fundo preto com 50% de transparência */
+        }
+
+        /* Linhas da grade (verticais e horizontais) */
+        .gantt .tick,
+        .gantt .grid-horizontal-line {
+            stroke: #4a4a4a; /* Linhas de grade escuras */
+        }
+
+        /* Remove o preenchimento das linhas de fundo para que o background do grid apareça */
+        .gantt .grid-row {
+            fill: transparent !important;
+        }
+
+        /* Fonte das tarefas */
+        .gantt .bar-label {
+            fill: #ffffff !important; /* Fonte branca */
+            font-weight: 500;
+        }
+
+        /* Custom Scrollbar for Gantt Containers */
+        .gantt-container::-webkit-scrollbar {
+            width: 8px;  /* Largura da barra de rolagem vertical */
+            height: 8px; /* Altura da barra de rolagem horizontal */
+        }
+
+        .gantt-container::-webkit-scrollbar-track {
+            background: transparent; /* Fundo da trilha transparente */
+        }
+
+        .gantt-container::-webkit-scrollbar-thumb {
+            background-color: rgba(74, 74, 74, 0.7); /* Cor do "polegar" da barra, cinza escuro translúcido */
+            border-radius: 10px; /* Bordas arredondadas */
+        }
+
+        .gantt-container::-webkit-scrollbar-thumb:hover {
+            background-color: rgba(120, 120, 120, 0.8); /* Cor ao passar o mouse */
         }
     </style>
 </head>
@@ -376,24 +418,24 @@
                 <div class="grid md:grid-cols-2 lg:grid-cols-4 gap-6">
                     <div>
                         <label for="braco-selecionado" class="block mb-2 text-sm font-medium text-main">Braço Selecionado:</label>
-                        <select id="braco-selecionado" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        <select id="braco-selecionado" class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                             <option value="Todos">Todos</option>
                         </select>
                     </div>
                     <div>
                         <label for="dias-programacao" class="block mb-2 text-sm font-medium text-main">Dias de Planejamento:</label>
-                        <input type="number" id="dias-programacao" value="50" min="1" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
+                        <input type="number" id="dias-programacao" value="50" min="1" class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
                     </div>
                     <div>
                         <label for="modo-sequenciamento" class="block mb-2 text-sm font-medium text-main">Modo de Sequenciamento:</label>
-                        <select id="modo-sequenciamento" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
+                        <select id="modo-sequenciamento" class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
                             <option value="Otimizado" selected>Otimizado</option>
                             <option value="Linear">Linear</option>
                         </select>
                     </div>
                     <div>
                         <label for="priorizacao-pedidos" class="block mb-2 text-sm font-medium text-main">Priorização de Pedidos:</label>
-                        <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830" class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
+                        <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830" class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5" />
                     </div>
                 </div>
                 <div class="mt-6 flex justify-between">

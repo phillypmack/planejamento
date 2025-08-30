@@ -318,7 +318,7 @@ def build_pdf_report(programacao_data, historico_atrasos):
     Constrói um relatório detalhado em PDF a partir dos dados de uma programação.
     """
     buffer = BytesIO()
-    doc = SimpleDocTemplate(buffer, pagesize=landscape(letter), rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
+    doc = SimpleDocTemplate(buffer, pagesize=letter, rightMargin=30, leftMargin=30, topMargin=30, bottomMargin=18)
     
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle(name='Center', alignment=TA_CENTER))
@@ -370,13 +370,24 @@ def build_pdf_report(programacao_data, historico_atrasos):
     # --- Histórico de Atrasos ---
     if historico_atrasos:
         elements.append(Paragraph("Histórico de Atrasos de Pedidos", styles['h2']))
+        
+        # Filtra para mostrar apenas a análise mais recente de cada pedido atrasado, evitando duplicatas
+        historico_atrasos.sort(key=lambda x: x.get('timestamp_analise'), reverse=True)
+        pedidos_vistos = set()
+        historico_filtrado = []
+        for item in historico_atrasos:
+            pedido = item.get('pedido')
+            if pedido not in pedidos_vistos:
+                historico_filtrado.append(item)
+                pedidos_vistos.add(pedido)
+
         # Ordena por dias de atraso (decrescente)
-        historico_atrasos.sort(key=lambda x: x.get('dias_atraso', 0), reverse=True)
+        historico_filtrado.sort(key=lambda x: x.get('dias_atraso', 0), reverse=True)
 
         atrasos_table_data = [
             [Paragraph(h, styles['TableHeader']) for h in ['Data Análise', 'Pedido', 'Cliente', 'Dias Atraso', 'Motivo']]
         ]
-        for item in historico_atrasos:
+        for item in historico_filtrado:
             data_analise = item.get('timestamp_analise').strftime('%d/%m/%Y %H:%M') if item.get('timestamp_analise') else 'N/A'
             row = [
                 data_analise,
@@ -387,7 +398,7 @@ def build_pdf_report(programacao_data, historico_atrasos):
             ]
             atrasos_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
         
-        atrasos_table = Table(atrasos_table_data, colWidths=[90, 70, 250, 60, 180])
+        atrasos_table = Table(atrasos_table_data, colWidths=[70, 60, 180, 60, 182])
         atrasos_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.darkred),
             ('ALIGN', (0, 0), (-1, -1), 'CENTER'),
@@ -445,7 +456,7 @@ def build_pdf_report(programacao_data, historico_atrasos):
             row = [item.get('Produto', ''), item.get('Quantidade', ''), item.get('Qtd. Moldes Cadastrados', '')]
             sem_molde_table_data.append([Paragraph(str(cell), styles['TableCell']) for cell in row])
         
-        sem_molde_table = Table(sem_molde_table_data, colWidths=[350, 120, 120])
+        sem_molde_table = Table(sem_molde_table_data, colWidths=[312, 120, 120])
         sem_molde_table.setStyle(TableStyle([
             ('BACKGROUND', (0, 0), (-1, 0), colors.red),
             ('TEXTCOLOR', (0, 0), (-1, 0), colors.black),
