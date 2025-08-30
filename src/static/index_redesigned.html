@@ -1,0 +1,928 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Sistema de Planejamento de Produção - MRP/PCP</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
+    <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', system-ui, -apple-system, sans-serif;
+            background-color: #1a1a1a;
+            color: #ffffff;
+            line-height: 1.6;
+            overflow-x: hidden;
+        }
+
+        /* Layout Principal */
+        .app-container {
+            display: flex;
+            min-height: 100vh;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background: linear-gradient(180deg, #2d2d2d 0%, #1f1f1f 100%);
+            border-right: 1px solid #404040;
+            transition: transform 0.3s ease;
+            position: fixed;
+            height: 100vh;
+            z-index: 1000;
+            overflow-y: auto;
+        }
+
+        .sidebar.collapsed {
+            transform: translateX(-100%);
+        }
+
+        .sidebar-header {
+            padding: 2rem 1.5rem;
+            border-bottom: 1px solid #404040;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+        }
+
+        .logo-icon {
+            width: 40px;
+            height: 40px;
+            background: linear-gradient(135deg, #0074D9, #001f3f);
+            border-radius: 8px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-size: 1.25rem;
+        }
+
+        .logo-text {
+            font-size: 1.5rem;
+            font-weight: 700;
+            color: #ffffff;
+        }
+
+        .nav-menu {
+            padding: 1rem 0;
+        }
+
+        .nav-item {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 1rem 1.5rem;
+            color: #cccccc;
+            text-decoration: none;
+            transition: all 0.3s ease;
+            border-left: 3px solid transparent;
+            position: relative;
+        }
+
+        .nav-item:hover {
+            background-color: #3a3a3a;
+            color: #ffffff;
+            border-left-color: #0074D9;
+        }
+
+        .nav-item.active {
+            background-color: #0074D9;
+            color: #ffffff;
+            border-left-color: #001f3f;
+        }
+
+        .nav-item i {
+            width: 20px;
+            text-align: center;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            margin-left: 280px;
+            transition: margin-left 0.3s ease;
+            background-color: #1a1a1a;
+        }
+
+        .main-content.expanded {
+            margin-left: 0;
+        }
+
+        /* Header */
+        .header {
+            background: linear-gradient(90deg, #2d2d2d 0%, #1f1f1f 100%);
+            border-bottom: 1px solid #404040;
+            padding: 1rem 2rem;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            position: sticky;
+            top: 0;
+            z-index: 100;
+        }
+
+        .header-left {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .sidebar-toggle {
+            background: #0074D9;
+            border: none;
+            color: white;
+            padding: 0.75rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .sidebar-toggle:hover {
+            background: #005bb5;
+            transform: scale(1.05);
+        }
+
+        .page-title {
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: #ffffff;
+        }
+
+        /* Content Area */
+        .content {
+            padding: 2rem;
+        }
+
+        /* Cards */
+        .card {
+            background: linear-gradient(145deg, #3a3a3a 0%, #2d2d2d 100%);
+            border: 1px solid #4a4a4a;
+            border-radius: 12px;
+            padding: 1.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.3);
+            transition: all 0.3s ease;
+        }
+
+        .card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0, 0, 0, 0.4);
+        }
+
+        /* KPI Cards */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .kpi-card {
+            background: linear-gradient(135deg, #0074D9 0%, #001f3f 100%);
+            border-radius: 12px;
+            padding: 1.5rem;
+            color: white;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .kpi-card::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            right: 0;
+            width: 100px;
+            height: 100px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 50%;
+            transform: translate(30px, -30px);
+        }
+
+        .kpi-card.green {
+            background: linear-gradient(135deg, #3D9970 0%, #2d7a5a 100%);
+        }
+
+        .kpi-card.yellow {
+            background: linear-gradient(135deg, #FFDC00 0%, #e6c400 100%);
+            color: #1a1a1a;
+        }
+
+        .kpi-card.aqua {
+            background: linear-gradient(135deg, #7FDBFF 0%, #5bc0de 100%);
+            color: #1a1a1a;
+        }
+
+        .kpi-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 1rem;
+        }
+
+        .kpi-title {
+            font-size: 0.875rem;
+            opacity: 0.9;
+            font-weight: 500;
+        }
+
+        .kpi-icon {
+            font-size: 2rem;
+            opacity: 0.8;
+        }
+
+        .kpi-value {
+            font-size: 2.5rem;
+            font-weight: 700;
+            line-height: 1;
+        }
+
+        .kpi-change {
+            font-size: 0.75rem;
+            margin-top: 0.5rem;
+            opacity: 0.8;
+        }
+
+        /* Buttons */
+        .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 0.75rem 1.5rem;
+            border: none;
+            border-radius: 8px;
+            font-weight: 500;
+            text-decoration: none;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            font-size: 0.875rem;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #0074D9, #005bb5);
+            color: white;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(0, 116, 217, 0.4);
+        }
+
+        .btn-secondary {
+            background: linear-gradient(135deg, #3D9970, #2d7a5a);
+            color: white;
+        }
+
+        .btn-secondary:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(61, 153, 112, 0.4);
+        }
+
+        .btn-warning {
+            background: linear-gradient(135deg, #FFDC00, #e6c400);
+            color: #1a1a1a;
+        }
+
+        .btn-warning:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(255, 220, 0, 0.4);
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 2px solid #4a4a4a;
+            color: #cccccc;
+        }
+
+        .btn-outline:hover {
+            border-color: #0074D9;
+            color: #0074D9;
+        }
+
+        /* Quick Actions */
+        .quick-actions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .quick-action {
+            background: linear-gradient(145deg, #3a3a3a 0%, #2d2d2d 100%);
+            border: 1px solid #4a4a4a;
+            border-radius: 12px;
+            padding: 2rem;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            color: inherit;
+        }
+
+        .quick-action:hover {
+            transform: translateY(-4px);
+            box-shadow: 0 12px 30px rgba(0, 0, 0, 0.4);
+            border-color: #0074D9;
+        }
+
+        .quick-action-icon {
+            font-size: 3rem;
+            color: #0074D9;
+            margin-bottom: 1rem;
+        }
+
+        .quick-action-title {
+            font-size: 1.25rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: #ffffff;
+        }
+
+        .quick-action-desc {
+            color: #cccccc;
+            font-size: 0.875rem;
+        }
+
+        /* Forms */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: #cccccc;
+        }
+
+        .form-input {
+            width: 100%;
+            padding: 0.75rem 1rem;
+            background: #2d2d2d;
+            border: 2px solid #4a4a4a;
+            border-radius: 8px;
+            color: #ffffff;
+            font-size: 0.875rem;
+            transition: all 0.3s ease;
+        }
+
+        .form-input:focus {
+            outline: none;
+            border-color: #0074D9;
+            box-shadow: 0 0 0 3px rgba(0, 116, 217, 0.1);
+        }
+
+        .form-input::placeholder {
+            color: #888888;
+        }
+
+        /* File Upload */
+        .file-upload {
+            position: relative;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .file-upload input[type="file"] {
+            position: absolute;
+            opacity: 0;
+            width: 100%;
+            height: 100%;
+            cursor: pointer;
+        }
+
+        .file-upload-label {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: #2d2d2d;
+            border: 2px dashed #4a4a4a;
+            border-radius: 8px;
+            color: #cccccc;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+
+        .file-upload:hover .file-upload-label {
+            border-color: #0074D9;
+            color: #0074D9;
+        }
+
+        /* Tables */
+        .table-container {
+            background: #2d2d2d;
+            border-radius: 12px;
+            overflow: hidden;
+            border: 1px solid #4a4a4a;
+        }
+
+        .table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+
+        .table th {
+            background: #1f1f1f;
+            padding: 1rem;
+            text-align: left;
+            font-weight: 600;
+            color: #ffffff;
+            border-bottom: 1px solid #4a4a4a;
+        }
+
+        .table td {
+            padding: 1rem;
+            border-bottom: 1px solid #404040;
+            color: #cccccc;
+        }
+
+        .table tr:hover {
+            background: #3a3a3a;
+        }
+
+        /* Loading */
+        .loading {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(26, 26, 26, 0.9);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            z-index: 9999;
+        }
+
+        .loading.hidden {
+            display: none;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 4px solid #4a4a4a;
+            border-top: 4px solid #0074D9;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        /* Step Indicator */
+        .step-indicator {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .step {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .step-number {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            background: #4a4a4a;
+            color: #888888;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: 600;
+            transition: all 0.3s ease;
+        }
+
+        .step-number.active {
+            background: #0074D9;
+            color: white;
+        }
+
+        .step-number.completed {
+            background: #3D9970;
+            color: white;
+        }
+
+        .step-line {
+            width: 60px;
+            height: 2px;
+            background: #4a4a4a;
+        }
+
+        .step-line.completed {
+            background: #3D9970;
+        }
+
+        /* Responsive */
+        @media (max-width: 768px) {
+            .sidebar {
+                width: 100%;
+                transform: translateX(-100%);
+            }
+
+            .main-content {
+                margin-left: 0;
+            }
+
+            .content {
+                padding: 1rem;
+            }
+
+            .kpi-grid {
+                grid-template-columns: 1fr;
+            }
+
+            .quick-actions {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* Utility Classes */
+        .hidden { display: none !important; }
+        .text-center { text-align: center; }
+        .text-right { text-align: right; }
+        .mb-1 { margin-bottom: 0.5rem; }
+        .mb-2 { margin-bottom: 1rem; }
+        .mb-3 { margin-bottom: 1.5rem; }
+        .mb-4 { margin-bottom: 2rem; }
+        .mt-1 { margin-top: 0.5rem; }
+        .mt-2 { margin-top: 1rem; }
+        .mt-3 { margin-top: 1.5rem; }
+        .mt-4 { margin-top: 2rem; }
+    </style>
+</head>
+<body>
+    <!-- Loading Screen -->
+    <div id="loading" class="loading hidden">
+        <div class="text-center">
+            <div class="spinner"></div>
+            <p class="mt-3" style="color: #cccccc;">Processando...</p>
+        </div>
+    </div>
+
+    <div class="app-container">
+        <!-- Sidebar -->
+        <nav class="sidebar" id="sidebar">
+            <div class="sidebar-header">
+                <div class="logo">
+                    <div class="logo-icon">
+                        <i class="fas fa-industry"></i>
+                    </div>
+                    <div class="logo-text">MRP/PCP</div>
+                </div>
+            </div>
+            
+            <div class="nav-menu">
+                <a href="#" class="nav-item active" data-section="dashboard">
+                    <i class="fas fa-tachometer-alt"></i>
+                    <span>Visão Geral</span>
+                </a>
+                <a href="#" class="nav-item" data-section="planejamento">
+                    <i class="fas fa-cogs"></i>
+                    <span>Planejamento</span>
+                </a>
+                <a href="#" class="nav-item" data-section="analise">
+                    <i class="fas fa-chart-line"></i>
+                    <span>Análise Histórica</span>
+                </a>
+                <a href="#" class="nav-item" data-section="relatorios">
+                    <i class="fas fa-file-alt"></i>
+                    <span>Relatórios</span>
+                </a>
+                <a href="#" class="nav-item" data-section="gantt">
+                    <i class="fas fa-calendar-alt"></i>
+                    <span>Gráficos Gantt</span>
+                </a>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="main-content" id="mainContent">
+            <!-- Header -->
+            <header class="header">
+                <div class="header-left">
+                    <button class="sidebar-toggle" id="sidebarToggle">
+                        <i class="fas fa-bars"></i>
+                    </button>
+                    <h1 class="page-title" id="pageTitle">Visão Geral</h1>
+                </div>
+            </header>
+
+            <!-- Content -->
+            <div class="content">
+                <!-- Dashboard Section -->
+                <section id="dashboard-section" class="section">
+                    <div class="mb-4">
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">
+                            Dashboard do Sistema
+                        </h2>
+                        <p style="color: #cccccc;">
+                            Acompanhe os principais indicadores do seu planejamento de produção
+                        </p>
+                    </div>
+
+                    <!-- KPI Cards -->
+                    <div class="kpi-grid">
+                        <div class="kpi-card">
+                            <div class="kpi-header">
+                                <div>
+                                    <div class="kpi-title">Total de Pedidos</div>
+                                    <div class="kpi-value" id="kpi-pedidos">-</div>
+                                    <div class="kpi-change">Última atualização</div>
+                                </div>
+                                <div class="kpi-icon">
+                                    <i class="fas fa-shopping-cart"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card green">
+                            <div class="kpi-header">
+                                <div>
+                                    <div class="kpi-title">Taxa de Ocupação</div>
+                                    <div class="kpi-value" id="kpi-ocupacao">-</div>
+                                    <div class="kpi-change">Moldes ativos</div>
+                                </div>
+                                <div class="kpi-icon">
+                                    <i class="fas fa-percentage"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card aqua">
+                            <div class="kpi-header">
+                                <div>
+                                    <div class="kpi-title">Pedidos Críticos</div>
+                                    <div class="kpi-value" id="kpi-criticos">-</div>
+                                    <div class="kpi-change">Requer atenção</div>
+                                </div>
+                                <div class="kpi-icon">
+                                    <i class="fas fa-exclamation-triangle"></i>
+                                </div>
+                            </div>
+                        </div>
+
+                        <div class="kpi-card yellow">
+                            <div class="kpi-header">
+                                <div>
+                                    <div class="kpi-title">Moldes Ociosos</div>
+                                    <div class="kpi-value" id="kpi-ociosos">-</div>
+                                    <div class="kpi-change">Disponíveis</div>
+                                </div>
+                                <div class="kpi-icon">
+                                    <i class="fas fa-tools"></i>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Quick Actions -->
+                    <div class="quick-actions">
+                        <a href="#" class="quick-action" onclick="showSection('planejamento')">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-play"></i>
+                            </div>
+                            <div class="quick-action-title">Novo Planejamento</div>
+                            <div class="quick-action-desc">
+                                Configure e execute uma nova programação de produção
+                            </div>
+                        </a>
+
+                        <a href="#" class="quick-action" onclick="carregarUltimoPlanejamento()">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-eye"></i>
+                            </div>
+                            <div class="quick-action-title">Ver Último Resultado</div>
+                            <div class="quick-action-desc">
+                                Visualizar a programação mais recente executada
+                            </div>
+                        </a>
+
+                        <a href="#" class="quick-action" onclick="showSection('analise')">
+                            <div class="quick-action-icon">
+                                <i class="fas fa-chart-bar"></i>
+                            </div>
+                            <div class="quick-action-title">Comparar Planos</div>
+                            <div class="quick-action-desc">
+                                Analisar e comparar diferentes programações
+                            </div>
+                        </a>
+                    </div>
+
+                    <!-- Recent History -->
+                    <div class="card">
+                        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1rem; color: #ffffff;">
+                            Histórico Recente
+                        </h3>
+                        <div id="historico-recente">
+                            <p style="color: #888888;">Carregando histórico...</p>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Planejamento Section -->
+                <section id="planejamento-section" class="section hidden">
+                    <div class="mb-4">
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 0.5rem;">
+                            Novo Planejamento
+                        </h2>
+                        <p style="color: #cccccc;">
+                            Siga os passos para gerar sua programação otimizada
+                        </p>
+                    </div>
+
+                    <!-- Step Indicator -->
+                    <div class="step-indicator">
+                        <div class="step">
+                            <div class="step-number active" id="step-1-indicator">1</div>
+                            <div class="step-line" id="line-1"></div>
+                            <div class="step-number" id="step-2-indicator">2</div>
+                            <div class="step-line" id="line-2"></div>
+                            <div class="step-number" id="step-3-indicator">3</div>
+                        </div>
+                    </div>
+
+                    <!-- Step 1: Upload Files -->
+                    <div id="step-1" class="card mb-3">
+                        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: #ffffff;">
+                            Passo 1: Carregar Dados
+                        </h3>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Planilha de Setup:</label>
+                                <div class="file-upload">
+                                    <input type="file" id="setup-file" accept=".xlsx">
+                                    <div class="file-upload-label">
+                                        <i class="fas fa-upload"></i>
+                                        <span>Selecionar arquivo</span>
+                                    </div>
+                                </div>
+                                <p id="setup-status" class="mt-1" style="font-size: 0.75rem; color: #888888;"></p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Planilha de Faltas:</label>
+                                <div class="file-upload">
+                                    <input type="file" id="faltas-file" accept=".xlsx">
+                                    <div class="file-upload-label">
+                                        <i class="fas fa-upload"></i>
+                                        <span>Selecionar arquivo</span>
+                                    </div>
+                                </div>
+                                <p id="faltas-status" class="mt-1" style="font-size: 0.75rem; color: #888888;"></p>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Cadastro de Moldes (Opcional):</label>
+                                <div class="file-upload">
+                                    <input type="file" id="cadastro-moldes-file" accept=".xlsx">
+                                    <div class="file-upload-label">
+                                        <i class="fas fa-upload"></i>
+                                        <span>Selecionar arquivo</span>
+                                    </div>
+                                </div>
+                                <p id="cadastro-status" class="mt-1" style="font-size: 0.75rem; color: #888888;"></p>
+                            </div>
+                        </div>
+
+                        <div class="text-right mt-3">
+                            <button id="next-step-1" class="btn btn-primary" disabled>
+                                <span>Próximo Passo</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 2: Configure Parameters -->
+                    <div id="step-2" class="card mb-3 hidden">
+                        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: #ffffff;">
+                            Passo 2: Definir Parâmetros
+                        </h3>
+                        
+                        <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); gap: 1.5rem;">
+                            <div class="form-group">
+                                <label class="form-label">Braço Selecionado:</label>
+                                <select id="braco-selecionado" class="form-input">
+                                    <option value="Todos">Todos</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Dias de Planejamento:</label>
+                                <input type="number" id="dias-programacao" value="50" min="1" class="form-input">
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Modo de Sequenciamento:</label>
+                                <select id="modo-sequenciamento" class="form-input">
+                                    <option value="Otimizado" selected>Otimizado</option>
+                                    <option value="Linear">Linear</option>
+                                </select>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="form-label">Priorização de Pedidos:</label>
+                                <input type="text" id="priorizacao-pedidos" placeholder="Ex: 1626805,1626806,1626830" class="form-input">
+                            </div>
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
+                            <button id="prev-step-2" class="btn btn-outline">
+                                <i class="fas fa-arrow-left"></i>
+                                <span>Passo Anterior</span>
+                            </button>
+                            <button id="next-step-2" class="btn btn-primary">
+                                <span>Próximo Passo</span>
+                                <i class="fas fa-arrow-right"></i>
+                            </button>
+                        </div>
+                    </div>
+
+                    <!-- Step 3: Execute and Results -->
+                    <div id="step-3" class="card mb-3 hidden">
+                        <h3 style="font-size: 1.25rem; font-weight: 600; margin-bottom: 1.5rem; color: #ffffff;">
+                            Passo 3: Executar e Analisar Resultados
+                        </h3>
+                        
+                        <div class="text-center mb-3">
+                            <button id="executar-programacao" class="btn btn-secondary" style="font-size: 1.125rem; padding: 1rem 2rem;">
+                                <i class="fas fa-play"></i>
+                                <span>Executar Programação</span>
+                            </button>
+                        </div>
+
+                        <div id="resultados-programacao" class="hidden">
+                            <!-- Results will be populated here -->
+                        </div>
+
+                        <div style="display: flex; justify-content: space-between; margin-top: 1.5rem;">
+                            <button id="prev-step-3" class="btn btn-outline">
+                                <i class="fas fa-arrow-left"></i>
+                                <span>Passo Anterior</span>
+                            </button>
+                            <button id="novo-planejamento" class="btn btn-warning hidden">
+                                <i class="fas fa-plus"></i>
+                                <span>Novo Planejamento</span>
+                            </button>
+                        </div>
+                    </div>
+                </section>
+
+                <!-- Other sections will be added here -->
+                <section id="analise-section" class="section hidden">
+                    <div class="card">
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem;">
+                            Análise Histórica
+                        </h2>
+                        <p style="color: #cccccc;">Em desenvolvimento...</p>
+                    </div>
+                </section>
+
+                <section id="relatorios-section" class="section hidden">
+                    <div class="card">
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem;">
+                            Relatórios
+                        </h2>
+                        <p style="color: #cccccc;">Em desenvolvimento...</p>
+                    </div>
+                </section>
+
+                <section id="gantt-section" class="section hidden">
+                    <div class="card">
+                        <h2 style="font-size: 2rem; font-weight: 700; color: #ffffff; margin-bottom: 1rem;">
+                            Gráficos Gantt
+                        </h2>
+                        <p style="color: #cccccc;">Em desenvolvimento...</p>
+                    </div>
+                </section>
+            </div>
+        </main>
+    </div>
+
+    <script src="script_redesigned.js"></script>
+</body>
+</html>
+
