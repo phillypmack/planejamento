@@ -5,14 +5,24 @@ from pymongo import MongoClient, DESCENDING
 from bson.objectid import ObjectId
 import os
 from dotenv import load_dotenv
+import oracledb
+from pathlib import Path
 
-load_dotenv()
+# Garante que o .env na raiz do projeto seja carregado,
+# independentemente de onde o script é executado.
+env_path = Path(__file__).resolve().parents[2] / '.env'
+load_dotenv(dotenv_path=env_path)
 
 # MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
 db = client.planejamento_db
 programacao_results_collection = db.programacao_results
+
+# Sankhya DB Connection Details
+SANKHYA_USER = os.getenv("SANKHYA_USER")
+SANKHYA_PASSWORD = os.getenv("SANKHYA_PASSWORD")
+SANKHYA_DSN = os.getenv("SANKHYA_DSN")
 
 gantt_bp = Blueprint("gantt", __name__, url_prefix="/api/gantt")
 
@@ -267,6 +277,34 @@ def calcular_datas_conclusao(programacao_data):
     
     return conclusoes
 
+def get_razao_social(nunota):
+    """
+    Busca a razão social do cliente no banco de dados Sankhya.
+    """
+    if not all([SANKHYA_USER, SANKHYA_PASSWORD, SANKHYA_DSN]):
+        print("Variáveis de ambiente Sankhya não configuradas. Retornando cliente padrão.")
+        return "Cliente (configurar .env)"
+
+    razao_social = "Cliente não encontrado"
+    try:
+        with oracledb.connect(user=SANKHYA_USER, password=SANKHYA_PASSWORD, dsn=SANKHYA_DSN) as connection:
+            with connection.cursor() as cursor:
+                sql = """
+                    SELECT PAR.RAZAOSOCIAL 
+                    FROM TGFPAR PAR 
+                    JOIN TGFCAB CAB ON CAB.CODPARC = PAR.CODPARC 
+                    WHERE CAB.NUNOTA = :nunota
+                """
+                cursor.execute(sql, nunota=nunota)
+                result = cursor.fetchone()
+                if result:
+                    razao_social = result[0]
+    except Exception as e:
+        error_message = f"Erro ao conectar ao DB Sankhya para NUNOTA {nunota}: {e}"
+        print(error_message)
+        razao_social = "Erro de conexão DB"
+    return razao_social
+
 @gantt_bp.route("/alertas_inteligentes", methods=["POST"])
 def gerar_alertas_inteligentes():
     """
@@ -444,8 +482,9 @@ def gantt_comparacao_atrasos():
         comparacao.sort(key=lambda x: x["diferenca_dias"], reverse=True)
         top_atrasos = comparacao[:5]
 
-        # 5. Formatar para o gráfico de Gantt
+        # 5. Formatar para o gráfico de Gantt e Tabela de Detalhes
         gantt_data = []
+        table_data = []
         for item in top_atrasos:
             pedido_int = int(item['pedido'])
             
@@ -465,7 +504,15 @@ def gantt_comparacao_atrasos():
                 "progress": 100, "custom_class": "bar-comparison-new"
             })
 
-        return jsonify({"gantt_data": gantt_data}), 200
+            # Buscar nome do cliente e adicionar dados para a tabela
+            nome_cliente = get_razao_social(pedido_int)
+            table_data.append({
+                "pedido": pedido_int,
+                "cliente": nome_cliente,
+                "dias_atraso": item["diferenca_dias"]
+            })
+
+        return jsonify({"gantt_data": gantt_data, "table_data": table_data}), 200
 
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar Gantt de comparação de atrasos: {str(e)}"}), 500

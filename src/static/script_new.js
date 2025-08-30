@@ -951,18 +951,60 @@ document.addEventListener("DOMContentLoaded", () => {
             const response = await fetch('/api/gantt/gantt_comparacao_atrasos');
             const result = await response.json();
 
-            const container = document.getElementById('gantt-comparacao-atrasos');
-            container.innerHTML = ''; // Limpa a mensagem de "carregando"
+            const ganttContainer = document.getElementById('gantt-comparacao-atrasos');
+            const tableContainer = document.getElementById('tabela-comparacao-atrasos');
+            
+            ganttContainer.innerHTML = ''; // Limpa a mensagem de "carregando"
+            tableContainer.innerHTML = ''; // Limpa a tabela
+            tableContainer.classList.add('hidden'); // Esconde por padrão
 
-            if (response.ok && result.gantt_data && result.gantt_data.length > 0) {
-                createComparisonGantt(result.gantt_data);
+            if (response.ok) {
+                if (result.gantt_data && result.gantt_data.length > 0) {
+                    createComparisonGantt(result.gantt_data);
+                } else {
+                    ganttContainer.innerHTML = `<p class="text-gray-400">${result.message || 'Não há dados de atraso para exibir.'}</p>`;
+                }
+
+                if (result.table_data && result.table_data.length > 0) {
+                    createComparisonTable(result.table_data);
+                }
             } else {
-                container.innerHTML = `<p class="text-gray-400">${result.message || 'Não há dados de atraso para exibir.'}</p>`;
+                 ganttContainer.innerHTML = `<p class="text-red-400">${result.error || 'Erro ao carregar dados de comparação.'}</p>`;
             }
         } catch (error) {
             console.error('Erro ao carregar Gantt de comparação:', error);
             document.getElementById('gantt-comparacao-atrasos').innerHTML = '<p class="text-red-400">Erro ao carregar análise de atrasos.</p>';
         }
+    }
+
+    function createComparisonTable(tableData) {
+        const container = document.getElementById('tabela-comparacao-atrasos');
+        container.innerHTML = ''; // Limpa conteúdo anterior
+        
+        const table = document.createElement('table');
+        table.className = 'min-w-full text-sm text-left text-gray-300';
+        
+        table.innerHTML = `
+            <thead class="text-xs text-gray-200 uppercase bg-gray-600">
+                <tr>
+                    <th class="px-4 py-3">Número do Pedido</th>
+                    <th class="px-4 py-3">Nome do Cliente</th>
+                    <th class="px-4 py-3">Dias de Atraso</th>
+                </tr>
+            </thead>
+            <tbody>
+                ${tableData.map(item => `
+                    <tr class="border-b border-gray-700 hover:bg-gray-700">
+                        <td class="px-4 py-2">${item.pedido}</td>
+                        <td class="px-4 py-2">${item.cliente}</td>
+                        <td class="px-4 py-2 text-red-400 font-semibold">${item.dias_atraso}</td>
+                    </tr>
+                `).join('')}
+            </tbody>
+        `;
+        
+        container.appendChild(table);
+        container.classList.remove('hidden');
     }
 
     function createComparisonGantt(ganttData) {
@@ -975,7 +1017,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 bar_height: 20,
                 bar_corner_radius: 3,
                 padding: 18,
-                view_mode: 'Week',
+                view_mode: 'Day',
                 date_format: 'DD/MM/YYYY',
                 custom_popup_html: (task) => `
                     <div class="p-2 bg-gray-800 text-white rounded-md shadow-lg">
@@ -984,6 +1026,24 @@ document.addEventListener("DOMContentLoaded", () => {
                         <p>Fim: ${new Date(task._end).toLocaleDateString('pt-BR')}</p>
                     </div>`
             });
+
+            // Adiciona um pequeno atraso para garantir que o SVG foi renderizado antes de manipular o scroll
+            setTimeout(() => {
+                // Encontra a data de início mais antiga para ajustar a posição inicial do scroll
+                const startDates = ganttData.map(task => new Date(task.start));
+                const earliestDate = new Date(Math.min.apply(null, startDates));
+
+                // Rola o gráfico para a data mais antiga para evitar espaços em branco à esquerda
+                const earliestDateString = formatDateForGantt(earliestDate);
+                const earliestDateElement = gantt.$svg.querySelector(`.date-group text[data-date="${earliestDateString}"]`);
+
+                if (earliestDateElement && gantt.$container) {
+                    const earliest_x_pos = parseFloat(earliestDateElement.getAttribute('x'));
+                    const column_width = gantt.options.column_width || 30;
+                    // Alinha o início do gráfico com o início da coluna da data mais antiga.
+                    gantt.$container.scrollLeft = earliest_x_pos - (column_width / 2);
+                }
+            }, 100);
 
             // Lógica para cabeçalho fixo
             const ganttContainer = document.querySelector('#gantt-comparacao-atrasos');
