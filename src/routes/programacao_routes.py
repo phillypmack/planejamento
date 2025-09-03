@@ -113,11 +113,12 @@ def gerar_programacao_route():
         return jsonify({"error": "Dados de configuração não fornecidos"}), 400
 
     try:
-        max_dias = int(data.get("dias_programacao", 10))
+        max_dias = int(data.get("dias_programacao", 50))
         if max_dias <= 0:
             return jsonify({"error": "Número de dias deve ser maior que 0."}), 400
         
         braco_selecionado = data.get("braco_selecionado", "Todos")
+        data_inicio_str = data.get("data_inicio") # Novo parâmetro para data de início
         priorizacao_pedidos_str = data.get("priorizacao_pedidos", "")
         modo_sequenciamento = data.get("modo_sequenciamento", "Otimizado")
 
@@ -142,7 +143,14 @@ def gerar_programacao_route():
         rodadas_resultado = []
         moldes_ociosos_list = []
         necessidade_sem_moldes_list = []
-        data_inicial = datetime.now()
+        
+        # Usa a data de início fornecida pelo usuário, ou a data atual como padrão.
+        # Isso garante que o planejamento comece a partir da data correta.
+        if data_inicio_str:
+            data_inicial = datetime.strptime(data_inicio_str, "%Y-%m-%d")
+        else:
+            data_inicial = datetime.now()
+
         capacidade_total_por_braco = {}
         for _, braco_info in bracos_moldes.groupby("CODBRACO"):
             cod_braco = braco_info.iloc[0]["CODBRACO"]
@@ -345,6 +353,12 @@ def gerar_programacao_route():
         try:
             program_result_doc = {
                 "timestamp": datetime.now(),
+                # Salva os parâmetros de configuração para rastreabilidade
+                "braco_selecionado": braco_selecionado,
+                "dias_programacao": max_dias,
+                "modo_sequenciamento": modo_sequenciamento,
+                "data_inicio": data_inicio_str,
+                "priorizacao_pedidos": priorizacao_pedidos_str,
                 "programacao_data": programacao_final_df.to_dict(orient="records") if not programacao_final_df.empty else [],
                 "moldes_ociosos_data": moldes_ociosos_df.to_dict(orient="records") if not moldes_ociosos_df.empty else [],
                 "necessidade_sem_moldes_data": necessidade_sem_moldes_df.to_dict(orient="records") if not necessidade_sem_moldes_df.empty else [],
@@ -364,7 +378,13 @@ def gerar_programacao_route():
             "necessidade_sem_moldes_url": f"/api/programacao/download/{necessidade_filename}",
             "programacao_data": programacao_final_df.to_dict(orient="records") if not programacao_final_df.empty else [],
             "moldes_ociosos_data": moldes_ociosos_df.to_dict(orient="records") if not moldes_ociosos_df.empty else [],
-            "necessidade_sem_moldes_data": necessidade_sem_moldes_df.to_dict(orient="records") if not necessidade_sem_moldes_df.empty else []
+            "necessidade_sem_moldes_data": necessidade_sem_moldes_df.to_dict(orient="records") if not necessidade_sem_moldes_df.empty else [],
+            # Retorna os parâmetros de configuração para o frontend
+            "dias_programacao": max_dias,
+            "braco_selecionado": braco_selecionado,
+            "modo_sequenciamento": modo_sequenciamento,
+            "data_inicio": data_inicio_str,
+            "priorizacao_pedidos": priorizacao_pedidos_str
         }), 200
 
     except ValueError as ve:

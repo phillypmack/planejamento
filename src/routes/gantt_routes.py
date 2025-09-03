@@ -13,6 +13,8 @@ from reportlab.platypus import SimpleDocTemplate, Table, TableStyle, Paragraph, 
 from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib import colors
+from collections import Counter
+from ..models.sankhya_model import db as sankhya_db, ProgramacaoItem
 
 # Garante que o .env na raiz do projeto seja carregado,
 # independentemente de onde o script é executado.
@@ -22,10 +24,10 @@ load_dotenv(dotenv_path=env_path)
 # MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI")
 client = MongoClient(MONGO_URI)
-db = client.planejamento_db
-programacao_results_collection = db.programacao_results
-atrasos_historico_collection = db.atrasos_historico
-motivos_ocorrencia_collection = db.motivos_ocorrencia
+mongo_db = client.planejamento_db
+programacao_results_collection = mongo_db.programacao_results
+atrasos_historico_collection = mongo_db.atrasos_historico
+motivos_ocorrencia_collection = mongo_db.motivos_ocorrencia
 
 # Sankhya DB Connection Details
 SANKHYA_USER = os.getenv("SANKHYA_USER")
@@ -237,11 +239,15 @@ def comparar_programacoes():
             "info_programacoes": {
                 "prog1": {
                     "timestamp": prog1.get("timestamp"),
-                    "braco_selecionado": prog1.get("braco_selecionado")
+                    "braco_selecionado": prog1.get("braco_selecionado"),
+                    "descricao": prog1.get("descricao"),
+                    "tipo": prog1.get("tipo")
                 },
                 "prog2": {
                     "timestamp": prog2.get("timestamp"),
-                    "braco_selecionado": prog2.get("braco_selecionado")
+                    "braco_selecionado": prog2.get("braco_selecionado"),
+                    "descricao": prog2.get("descricao"),
+                    "tipo": prog2.get("tipo")
                 }
             }
         }), 200
@@ -284,6 +290,34 @@ def calcular_datas_conclusao(programacao_data):
         }
     
     return conclusoes
+
+def get_valor_pedido(nunota):
+    """
+    Busca o valor da nota (VLRNOTA) no banco de dados Sankhya.
+    Retorna 0.0 se não encontrar ou em caso de erro.
+    """
+    if not all([SANKHYA_USER, SANKHYA_PASSWORD, SANKHYA_DSN]):
+        print(f"Variáveis de ambiente Sankhya não configuradas. Retornando valor 0 para NUNOTA {nunota}.")
+        return 0.0
+
+    valor_nota = 0.0
+    try:
+        # O NUNOTA pode vir como string ou float (ex: "12345.0")
+        nunota_int = int(float(nunota))
+        with oracledb.connect(user=SANKHYA_USER, password=SANKHYA_PASSWORD, dsn=SANKHYA_DSN) as connection:
+            with connection.cursor() as cursor:
+                sql = "SELECT VLRNOTA FROM TGFCAB WHERE NUNOTA = :nunota"
+                cursor.execute(sql, nunota=nunota_int)
+                result = cursor.fetchone()
+                if result and result[0] is not None:
+                    valor_nota = float(result[0])
+    except oracledb.Error as e:
+        print(f"Erro de banco de dados Oracle ao buscar valor para NUNOTA {nunota}: {e}")
+        valor_nota = 0.0
+    except Exception as e:
+        print(f"Erro geral ao buscar valor para NUNOTA {nunota}: {e}")
+        valor_nota = 0.0
+    return valor_nota
 
 def get_razao_social(nunota):
     """
@@ -928,6 +962,193 @@ def gerar_relatorio_pdf(programacao_id):
         )
     except Exception as e:
         return jsonify({"error": f"Erro ao gerar relatório PDF: {str(e)}"}), 500
+
+@gantt_bp.route("/projecao_finalizacao_pedidos", methods=["POST"])
+def projecao_finalizacao_pedidos():
+    """
+    Gera dados para os gráficos de projeção de finalização de pedidos (quantidade, valor e detalhes).
+    """
+    try:
+        data = request.get_json()
+        programacao_id = data.get("programacao_id")
+
+        if not programacao_id:
+            return jsonify({"error": "ID da programação é obrigatório"}), 400
+
+        programacao = programacao_results_collection.find_one({"_id": ObjectId(programacao_id)})
+        if not programacao:
+            return jsonify({"error": "Programação não encontrada"}), 404
+
+        programacao_data = programacao.get("programacao_data", [])
+        if not programacao_data:
+            return jsonify({"labels": [], "data_quantidade": [], "data_valor": [], "detalhes_por_dia": {}}), 200
+
+        conclusoes_pedidos = calcular_datas_conclusao(programacao_data)
+
+        contagem_por_dia = Counter()
+        valor_por_dia = Counter()
+        detalhes_por_dia = {}
+        stock_order_ids = ["9999997", "9999998", "9999999"]
+
+        # Calcula a quantidade de itens planejados por dia (nova lógica)
+        itens_planejados_por_dia = Counter()
+        for item in programacao_data:
+            try:
+                data_prevista_dt = datetime.strptime(item["Data Prevista"], "%d/%m/%Y")
+                itens_planejados_por_dia[data_prevista_dt] += item.get("Quantidade Programada", 0)
+            except (ValueError, TypeError, KeyError) as e:
+                print(f"Aviso: Ignorando item para projeção de itens planejados devido a dados inválidos: {e}")
+                continue
+
+        # Calcula métricas de finalização de pedidos (lógica existente)
+        for pedido, info in conclusoes_pedidos.items():
+            try:
+                data_conclusao_dt = datetime.strptime(info["data_conclusao"], "%d/%m/%Y")
+                data_conclusao_str = data_conclusao_dt.strftime("%d/%m/%Y")
+
+                contagem_por_dia[data_conclusao_dt] += 1
+                
+                valor_pedido = 0.0
+                cliente = "Estoque"
+                pedido_int_str = str(int(float(pedido)))
+
+                if pedido_int_str not in stock_order_ids:
+                    valor_pedido = get_valor_pedido(pedido)
+                    cliente = get_razao_social(int(float(pedido)))
+                
+                valor_por_dia[data_conclusao_dt] += valor_pedido
+
+                # Adiciona detalhes para o dia
+                if data_conclusao_str not in detalhes_por_dia:
+                    detalhes_por_dia[data_conclusao_str] = []
+                
+                detalhes_por_dia[data_conclusao_str].append({
+                    "pedido": pedido_int_str,
+                    "cliente": cliente,
+                    "produto": info["produto"],
+                    "valor": valor_pedido
+                })
+            except (ValueError, TypeError) as e:
+                print(f"Aviso: Ignorando pedido '{pedido}' devido a dados inválidos: {e}")
+                continue
+
+        # Unifica as datas de todos os contadores
+        todas_as_datas = set(contagem_por_dia.keys()) | set(itens_planejados_por_dia.keys())
+
+        if not todas_as_datas:
+            return jsonify({"labels": [], "data_quantidade": [], "data_valor": [], "data_itens": [], "detalhes_por_dia": {}}), 200
+
+        datas_ordenadas = sorted(list(todas_as_datas))
+        
+        labels = [d.strftime("%d/%m/%Y") for d in datas_ordenadas]
+        data_points_quantidade = [contagem_por_dia.get(d, 0) for d in datas_ordenadas]
+        data_points_valor = [valor_por_dia.get(d, 0.0) for d in datas_ordenadas]
+        data_points_itens = [itens_planejados_por_dia.get(d, 0) for d in datas_ordenadas]
+
+        return jsonify({
+            "labels": labels, 
+            "data_quantidade": data_points_quantidade,
+            "data_valor": data_points_valor,
+            "data_itens": data_points_itens,
+            "detalhes_por_dia": detalhes_por_dia
+        }), 200
+    except Exception as e:
+        return jsonify({"error": f"Erro ao gerar projeção de finalização: {str(e)}"}), 500
+
+@gantt_bp.route("/enviar_para_sankhya", methods=["POST"])
+def enviar_para_sankhya():
+    """
+    Recebe os dados da programação e os insere na tabela AD_PLAN do Sankhya.
+    """
+    try:
+        data = request.get_json()
+        programacao_data = data.get("programacao_data")
+
+        if not programacao_data:
+            return jsonify({"error": "Nenhum dado de programação recebido."}), 400
+
+        # Obter o próximo NUPLAN (PK)
+        # A forma mais segura é usar uma sequence do Oracle, mas aqui vamos usar MAX+1
+        max_nuplan_result = sankhya_db.session.query(sankhya_db.func.max(ProgramacaoItem.nuplan)).scalar()
+        nuplan_counter = (max_nuplan_result or 0) + 1
+
+        # Preparar os novos registros
+        novos_itens = []
+        for item_data in programacao_data:
+            # Usa o método de classe do modelo para criar a instância
+            novo_item = ProgramacaoItem.from_programacao_data(item_data, nuplan_counter)
+            novos_itens.append(novo_item)
+            nuplan_counter += 1
+        
+        # Inserir em lote (bulk) para melhor performance
+        if novos_itens:
+            sankhya_db.session.bulk_save_objects(novos_itens)
+            sankhya_db.session.commit()
+
+        return jsonify({
+            "message": f"{len(novos_itens)} registros de programação foram enviados com sucesso para o Sankhya.",
+            "registros_inseridos": len(novos_itens)
+        }), 200
+
+    except Exception as e:
+        # Em caso de erro, desfaz a transação
+        sankhya_db.session.rollback()
+        print(f"Erro ao enviar para o Sankhya: {e}")
+        # Retorna um erro genérico para o frontend para não expor detalhes do banco
+        return jsonify({"error": f"Ocorreu um erro no servidor ao enviar os dados para o Sankhya."}), 500
+
+@gantt_bp.route("/listar_simulacoes", methods=["GET"])
+def listar_simulacoes():
+    """
+    Lista todos os planejamentos salvos que são do tipo 'Simulação de Setup'.
+    """
+    try:
+        # Busca por documentos que tenham o campo 'tipo' igual a 'Simulação de Setup'
+        # e ordena pelos mais recentes primeiro.
+        cursor = programacao_results_collection.find( # Exclui o campo 'programacao_data' para um carregamento mais rápido
+            {"tipo": "Simulação de Setup"}
+        , {"programacao_data": 0}).sort("timestamp", DESCENDING)
+        
+        simulacoes = list(cursor)
+        
+        # Converte ObjectId para string para ser serializável em JSON
+        for sim in simulacoes:
+            sim["_id"] = str(sim["_id"])
+
+        return jsonify({"simulacoes": simulacoes}), 200
+        
+    except Exception as e:
+        return jsonify({"error": f"Erro ao listar simulações: {str(e)}"}), 500
+
+@gantt_bp.route("/salvar_planejamento_alternativo", methods=["POST"])
+def salvar_planejamento_alternativo():
+    """
+    Salva um novo documento de planejamento no MongoDB,
+    geralmente vindo de uma simulação do sandbox.
+    """
+    try:
+        planejamento_data = request.get_json()
+
+        if not planejamento_data or "programacao_data" not in planejamento_data:
+            return jsonify({"error": "Dados de planejamento inválidos ou ausentes."}), 400
+
+        # Adiciona/atualiza o timestamp para garantir que é o mais recente
+        planejamento_data["timestamp"] = datetime.now()
+
+        # Remove o campo _id se ele existir, pois o MongoDB irá gerar um novo
+        if "_id" in planejamento_data:
+            del planejamento_data["_id"]
+
+        # Insere o novo documento de planejamento na coleção
+        result = programacao_results_collection.insert_one(planejamento_data)
+
+        return jsonify({
+            "message": "Simulação salva com sucesso como um novo planejamento!",
+            "id_salvo": str(result.inserted_id)
+        }), 201
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao salvar planejamento alternativo: {str(e)}"}), 500
 
 @gantt_bp.route("/obter_ultimo_planejamento", methods=["GET"])
 def obter_ultimo_planejamento():

@@ -4,24 +4,32 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
 
 from flask import Flask, send_from_directory
-from src.models.user import db # Mantido caso seja usado no futuro, mas não para este app
-from src.routes.user import user_bp # Mantido caso seja usado no futuro, mas não para este app
+from dotenv import load_dotenv
+from src.models.sankhya_model import db as sankhya_db
 from src.routes.programacao_routes import programacao_bp # Nova importação
 from src.routes.gantt_routes import gantt_bp # Importação das rotas Gantt
 
 app = Flask(__name__, static_folder=os.path.join(os.path.dirname(__file__), 'static'))
 app.config['SECRET_KEY'] = 'asdf#FGSgvasgf$5$WGT'
 
-# app.register_blueprint(user_bp, url_prefix='/api') # Comentado pois não será usado
-app.register_blueprint(programacao_bp) # Registro do novo blueprint
-app.register_blueprint(gantt_bp) # Registro das rotas Gantt
+app.register_blueprint(programacao_bp)
+app.register_blueprint(gantt_bp)
 
-# uncomment if you need to use database
-# app.config['SQLALCHEMY_DATABASE_URI'] = f"mysql+pymysql://{os.getenv('DB_USERNAME', 'root')}:{os.getenv('DB_PASSWORD', 'password')}@{os.getenv('DB_HOST', 'localhost')}:{os.getenv('DB_PORT', '3306')}/{os.getenv('DB_NAME', 'mydb')}"
-# app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
-# db.init_app(app)
-# with app.app_context():
-#     db.create_all()
+# Carrega variáveis de ambiente do arquivo .env na raiz do projeto
+env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+load_dotenv(dotenv_path=env_path)
+
+# Configuração do Banco de Dados Sankhya (Oracle) com SQLAlchemy
+SANKHYA_USER = os.getenv("SANKHYA_USER")
+SANKHYA_PASSWORD = os.getenv("SANKHYA_PASSWORD")
+SANKHYA_DSN = os.getenv("SANKHYA_DSN")
+
+if all([SANKHYA_USER, SANKHYA_PASSWORD, SANKHYA_DSN]):
+    app.config['SQLALCHEMY_DATABASE_URI'] = f"oracle+oracledb://{SANKHYA_USER}:{SANKHYA_PASSWORD}@{SANKHYA_DSN}"
+    app.config['SQLALCHEMY_TRACK_MODIFICATIONS'] = False
+    sankhya_db.init_app(app)
+else:
+    print("AVISO: Variáveis de ambiente para o banco de dados Sankhya (Oracle) não estão configuradas. A funcionalidade de 'Enviar para Sankhya' não funcionará.")
 
 @app.route('/', defaults={'path': ''})
 @app.route('/<path:path>')
