@@ -337,7 +337,7 @@
 
         <div class="absolute bottom-4 left-4 right-4">
             <div class="text-xs text-secondary text-center">
-                v1.0 - Sistema MRP/PCP
+                v0.80 - Sistema MRP/PCP
             </div>
         </div>
     </div>
@@ -909,6 +909,46 @@
                 <h2 class="text-3xl font-bold text-accent mb-2">Otimização de Setup</h2>
                 <p class="text-secondary">Analise a alocação atual de moldes nos braços e identifique oportunidades de
                     remanejamento.</p>
+            </div>
+
+            <!-- KPI Cards for Otimização -->
+            <div id="otimizacao-kpi-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 hidden">
+                <div class="kpi-card-blue p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Moldes para Pedidos</p>
+                            <p id="otimizacao-kpi-pedidos" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-shopping-cart text-3xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="kpi-card-yellow p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Estoque Mínimo</p>
+                            <p id="otimizacao-kpi-estoque-min" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-battery-quarter text-3xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="kpi-card-green p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Estoque Médio</p>
+                            <p id="otimizacao-kpi-estoque-med" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-battery-half text-3xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="kpi-card-red p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Estoque Máximo</p>
+                            <p id="otimizacao-kpi-estoque-max" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-battery-full text-3xl opacity-80"></i>
+                    </div>
+                </div>
             </div>
 
             <div class="bg-primary-light rounded-lg p-6">

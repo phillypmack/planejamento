@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
     let projecaoChartInstance = null;
     let projecaoItensChartInstance = null;
     // Pagination for programacao table
+    let motivosOcorrenciaCache = null;
     let programacaoCurrentPage = 1;
     const programacaoRowsPerPage = 50;
     let programacaoFilteredData = [];
@@ -2067,6 +2068,12 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function loadMotivosOcorrencia() {
+        // 1. Verifica se os dados já estão em cache
+        if (motivosOcorrenciaCache) {
+            renderMotivos(motivosOcorrenciaCache); // Renderiza a partir do cache
+            return;
+        }
+
         try {
             const response = await fetch('/api/gantt/motivos/listar');
             const result = await response.json();
@@ -2074,23 +2081,28 @@ document.addEventListener("DOMContentLoaded", () => {
             tbody.innerHTML = '';
 
             if (response.ok && result.motivos && result.motivos.length > 0) {
-                result.motivos.forEach(motivo => {
-                    const row = tbody.insertRow();
-                    row.innerHTML = `
-                        <td class="px-4 py-2">${motivo.motivo}</td>
-                        <td class="px-4 py-2 text-right">
-                            <button class="text-red-500 hover:text-red-400" onclick="excluirMotivo('${motivo._id}')">
-                                <i class="fas fa-trash-alt"></i>
-                            </button>
-                        </td>
-                    `;
-                });
+                motivosOcorrenciaCache = result.motivos; // 2. Salva os dados no cache
+                renderMotivos(motivosOcorrenciaCache);
             } else {
                 tbody.innerHTML = '<tr><td colspan="2" class="px-4 py-2 text-gray-400 text-center">Nenhum motivo cadastrado.</td></tr>';
             }
         } catch (error) {
             console.error('Erro ao carregar motivos:', error);
             document.getElementById('motivos-tabela-body').innerHTML = '<tr><td colspan="2" class="px-4 py-2 text-red-400 text-center">Erro ao carregar motivos.</td></tr>';
+        }
+    }
+
+    function renderMotivos(motivos) {
+        const tbody = document.getElementById('motivos-tabela-body');
+        tbody.innerHTML = '';
+        if (motivos && motivos.length > 0) {
+            motivos.forEach(motivo => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td class="px-4 py-2">${motivo.motivo}</td>
+                    <td class="px-4 py-2 text-right"><button class="text-red-500 hover:text-red-400" onclick="excluirMotivo('${motivo._id}')"><i class="fas fa-trash-alt"></i></button></td>
+                `;
+            });
         }
     }
 
@@ -2104,6 +2116,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) { throw new Error(result.error || 'Erro ao adicionar motivo'); }
             alert(result.message);
             input.value = '';
+            motivosOcorrenciaCache = null; // Invalida o cache para forçar o recarregamento
             loadMotivosOcorrencia();
         } catch (error) { alert(`Erro: ${error.message}`); }
     }
@@ -2115,6 +2128,7 @@ document.addEventListener("DOMContentLoaded", () => {
             const result = await response.json();
             if (!response.ok) { throw new Error(result.error || 'Erro ao excluir motivo'); }
             alert(result.message);
+            motivosOcorrenciaCache = null; // Invalida o cache
             loadMotivosOcorrencia();
         } catch (error) { alert(`Erro: ${error.message}`); }
     };
@@ -2200,6 +2214,46 @@ document.addEventListener("DOMContentLoaded", () => {
 
             const blob = await response.blob();
             const url = window.URL.createObjectURL(blob);
+            // d:\planejamento 0.79\src\static\script_new.js
+
+            async function gerarProgramacao() {
+                showLoading();
+
+                try {
+                    // ... (código de upload e configuração)
+
+                    // Generate planning
+                    const response = await fetch('/api/programacao/gerar_programacao', {
+                        // ...
+                    });
+
+                    const result = await response.json();
+
+                    if (!response.ok) {
+                        throw new Error(result.error || 'Erro ao gerar programação');
+                    }
+
+                    // Store results
+                    dadosOriginais = result;
+
+                    // OTIMIZAÇÃO: Se o backend pré-calculou os dados da projeção, armazena em cache imediatamente.
+                    if (result.projecao_data && result._id) {
+                        projecaoCache[result._id] = result.projecao_data;
+                        console.log('Dados de projeção pré-calculados e cacheados com sucesso na geração.');
+                    } else {
+                        projecaoCache = {}; // Limpa o cache se não houver dados de projeção
+                    }
+
+                    // Show results
+                    showResults(result);
+                    // ...
+
+                } catch (error) {
+                    alert(`Erro: ${error.message}`);
+                } finally {
+                    hideLoading();
+                }
+            }
             const a = document.createElement('a');
             a.style.display = 'none'; a.href = url; a.download = `relatorio_programacao_${programacaoId}.pdf`;
             document.body.appendChild(a); a.click(); window.URL.revokeObjectURL(url); a.remove();
@@ -2556,6 +2610,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderOtimizacaoSetupTable(programacaoData) {
         const container = document.getElementById('otimizacao-setup-container');
+        const kpiContainer = document.getElementById('otimizacao-kpi-container');
 
         // Limpa o conteúdo anterior e define as classes do grid
         container.innerHTML = '';
@@ -2563,8 +2618,63 @@ document.addEventListener("DOMContentLoaded", () => {
         if (!programacaoData || programacaoData.length === 0) {
             // Se não houver dados, exibe uma única mensagem que ocupa todas as colunas
             container.innerHTML = '<p class="text-secondary text-center py-8 md:col-span-2">Não há dados de programação para exibir.</p>';
+            // Esconde os KPIs
+            kpiContainer.classList.add('hidden');
             return;
         }
+
+        // Mostra os KPIs
+        kpiContainer.classList.remove('hidden');
+
+        // --- Cálculo para os KPIs ---
+        // A lógica agora SOMA a quantidade de moldes, baseada na finalidade da PRIMEIRA rodada de produção de cada molde.
+        const stockOrderIds = {
+            min: "9999997",
+            med: "9999998",
+            max: "9999999"
+        };
+        const allStockIds = Object.values(stockOrderIds);
+
+        // 1. Encontra a primeira rodada e o tipo de pedido para cada molde único.
+        const firstUseByMold = {};
+        programacaoData.forEach(item => {
+            const mold = item.Produto;
+            const round = item["Número da Rodada"];
+
+            if (!firstUseByMold[mold] || round < firstUseByMold[mold].round) {
+                firstUseByMold[mold] = {
+                    round: round,
+                    order: String(item.Pedido)
+                };
+            }
+        });
+
+        // 2. Itera sobre a programação e SOMA as quantidades de moldes que estão na sua primeira rodada de uso.
+        let countPedidos = 0;
+        let countEstoqueMin = 0;
+        let countEstoqueMed = 0;
+        let countEstoqueMax = 0;
+
+        programacaoData.forEach(item => {
+            const mold = item.Produto;
+            const round = item["Número da Rodada"];
+            const quantity = item["Quantidade de Moldes"] || 0;
+            const firstUse = firstUseByMold[mold];
+
+            // Processa apenas os itens que estão na primeira rodada de uso do seu respectivo molde.
+            if (firstUse && round === firstUse.round) {
+                if (firstUse.order === stockOrderIds.min) countEstoqueMin += quantity;
+                else if (firstUse.order === stockOrderIds.med) countEstoqueMed += quantity;
+                else if (firstUse.order === stockOrderIds.max) countEstoqueMax += quantity;
+                else if (!allStockIds.includes(firstUse.order)) countPedidos += quantity;
+            }
+        });
+
+        // Atualiza os cards
+        document.getElementById('otimizacao-kpi-pedidos').textContent = countPedidos;
+        document.getElementById('otimizacao-kpi-estoque-min').textContent = countEstoqueMin;
+        document.getElementById('otimizacao-kpi-estoque-med').textContent = countEstoqueMed;
+        document.getElementById('otimizacao-kpi-estoque-max').textContent = countEstoqueMax;
 
         const stockTypeMap = {
             "9999997": "Estoque Mínimo",
@@ -2608,6 +2718,12 @@ document.addEventListener("DOMContentLoaded", () => {
             armCard.dataset.armId = i; // Data attribute for drop target
 
             const moldsInArm = setupByArm[i];
+
+            // Calculate total molds for the current arm
+            let totalMoldesNoBraco = 0;
+            if (moldsInArm) {
+                totalMoldesNoBraco = Object.values(moldsInArm).reduce((sum, moldData) => sum + (moldData.quantity || 0), 0);
+            }
             let tableHtml = `
                 <table class="min-w-full text-sm text-left text-main">
                     <thead class="text-xs text-main uppercase bg-gray-700">
@@ -2661,7 +2777,10 @@ document.addEventListener("DOMContentLoaded", () => {
             tableHtml += '</tbody></table>';
 
             armCard.innerHTML = `
-                <h4 class="text-lg font-bold text-accent mb-3 border-b border-gray-600 pb-2">Braço ${i}</h4>
+                <h4 class="text-lg font-bold text-accent mb-3 border-b border-gray-600 pb-2 flex items-baseline">
+                    <span>Braço ${i}</span>
+                    <span class="text-sm font-normal text-secondary ml-2">(${totalMoldesNoBraco} moldes)</span>
+                </h4>
                 <div class="overflow-y-auto flex-grow">${tableHtml}</div>
             `;
             container.appendChild(armCard);
