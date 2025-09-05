@@ -1,0 +1,1293 @@
+document.addEventListener("DOMContentLoaded", () => {
+    // Global variables
+    let currentStep = 1;
+    let setupFile = null;
+    let faltasFile = null;
+    let cadastroMoldesFile = null;
+    let dadosOriginais = null;
+    let selectedHistoryItems = [];
+    let projecaoDetalhes = null;
+    let projecaoValorChartInstance = null;
+    let projecaoChartInstance = null;
+    let projecaoItensChartInstance = null;
+    // Pagination for programacao table
+    let motivosOcorrenciaCache = null;
+    let programacaoCurrentPage = 1;
+    const programacaoRowsPerPage = 50;
+    let programacaoFilteredData = [];
+
+    // Initialize the application
+    initializeApp();
+
+    function initializeApp() {
+        setupEventListeners();
+        setDefaultStartDate();
+
+        // Check for a query parameter to load a specific historical plan
+        const urlParams = new URLSearchParams(window.location.search);
+        const planToLoadId = urlParams.get('load');
+        if (planToLoadId) {
+            loadAndShowHistoricPlan(planToLoadId);
+        }
+    }
+
+    async function loadAndShowHistoricPlan(id) {
+        showLoading();
+        try {
+            const response = await fetch(`/api/gantt/obter_planejamento/${id}`);
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Planejamento não encontrado');
+            }
+
+            dadosOriginais = result;
+
+            goToStep(3);
+            showResults(result);
+            document.getElementById('results-tabs').classList.remove('hidden');
+            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
+
+        } catch (error) {
+            alert(`Erro ao carregar planejamento do histórico: ${error.message}`);
+        } finally {
+            hideLoading();
+        }
+    }
+
+
+    function setupEventListeners() {
+        // Sidebar toggle
+        document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
+
+        // File uploads
+        document.getElementById('setup-file').addEventListener('change', handleSetupFile);
+        document.getElementById('faltas-file').addEventListener('change', handleFaltasFile);
+        document.getElementById('cadastro-moldes-file').addEventListener('change', handleCadastroFile);
+
+        // Step navigation
+        document.getElementById('next-step-1').addEventListener('click', () => goToStep(2));
+        document.getElementById('prev-step-2').addEventListener('click', () => goToStep(1));
+        document.getElementById('next-step-2').addEventListener('click', () => goToStep(3));
+        document.getElementById('prev-step-3').addEventListener('click', () => goToStep(2));
+
+        // Generate planning
+        document.getElementById('gerar-programacao-btn').addEventListener('click', gerarProgramacao);
+
+        // Tab navigation
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.addEventListener('click', (e) => {
+                const tab = e.target.dataset.tab;
+                showTab(tab);
+            });
+        });
+
+        // Search functionality
+        document.getElementById('search-programacao').addEventListener('input', filterProgramacao);
+        document.getElementById('export-programacao').addEventListener('click', exportProgramacaoToExcel);
+
+        // Enviar para Sankhya
+        document.getElementById('enviar-sankhya-btn').addEventListener('click', enviarParaSankhya);
+    }
+
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const mainContent = document.getElementById('main-content');
+        const toggleIcon = document.querySelector('#sidebar-toggle i');
+
+        // Alterna a classe que aplica a transformação para esconder/mostrar a sidebar
+        sidebar.classList.toggle('sidebar-collapsed');
+
+        // Alterna as classes de margem do conteúdo principal para que ele ocupe o espaço
+        if (sidebar.classList.contains('sidebar-collapsed')) {
+            mainContent.classList.remove('ml-64');
+            mainContent.classList.add('ml-0');
+            toggleIcon.classList.remove('fa-chevron-left');
+            toggleIcon.classList.add('fa-chevron-right');
+        } else {
+            mainContent.classList.remove('ml-0');
+            mainContent.classList.add('ml-64');
+            toggleIcon.classList.remove('fa-chevron-right');
+            toggleIcon.classList.add('fa-chevron-left');
+        }
+    }
+
+    function handleSetupFile(e) {
+        setupFile = e.target.files[0];
+        const status = document.getElementById('setup-status');
+        if (setupFile) {
+            status.textContent = `Arquivo selecionado: ${setupFile.name}`;
+            status.className = 'mt-1 text-xs text-green-500';
+        }
+        checkStep1Completion();
+    }
+
+    function handleFaltasFile(e) {
+        faltasFile = e.target.files[0];
+        const status = document.getElementById('faltas-status');
+        if (faltasFile) {
+            status.textContent = `Arquivo selecionado: ${faltasFile.name}`;
+            status.className = 'mt-1 text-xs text-green-500';
+        }
+        checkStep1Completion();
+    }
+
+    function handleCadastroFile(e) {
+        cadastroMoldesFile = e.target.files[0];
+        const status = document.getElementById('cadastro-status');
+        if (cadastroMoldesFile) {
+            status.textContent = `Arquivo selecionado: ${cadastroMoldesFile.name}`;
+            status.className = 'mt-1 text-xs text-green-500';
+        }
+    }
+
+    function checkStep1Completion() {
+        const nextButton = document.getElementById('next-step-1');
+        if (setupFile && faltasFile) {
+            nextButton.disabled = false;
+            nextButton.classList.remove('opacity-50', 'cursor-not-allowed');
+        } else {
+            nextButton.disabled = true;
+            nextButton.classList.add('opacity-50', 'cursor-not-allowed');
+        }
+    }
+
+    function goToStep(step) {
+        // Hide all steps
+        document.querySelectorAll('.step-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+
+        // Show selected step
+        document.getElementById(`step-${step}`).classList.remove('hidden');
+
+        // Update step indicators
+        document.querySelectorAll('.step-indicator').forEach((indicator, index) => {
+            indicator.classList.remove('active', 'completed');
+            if (index + 1 < step) {
+                indicator.classList.add('completed');
+            } else if (index + 1 === step) {
+                indicator.classList.add('active');
+            }
+        });
+
+        currentStep = step;
+    }
+
+    function setDefaultStartDate() {
+        const dateInput = document.getElementById('data-inicio-planejamento');
+        if (dateInput) {
+            // Sets the default value to today in YYYY-MM-DD format
+            dateInput.value = new Date().toISOString().split('T')[0];
+        }
+    }
+
+    async function gerarProgramacao() {
+        showLoading();
+
+        try {
+            // Upload files
+            if (!await uploadFiles()) {
+                hideLoading();
+                return;
+            }
+
+            // Get configuration
+            const config = {
+                braco_selecionado: document.getElementById('braco-selecionado').value,
+                dias_programacao: parseInt(document.getElementById('dias-programacao').value),
+                modo_sequenciamento: 'Otimizado', // Hardcoded as requested
+                data_inicio: document.getElementById('data-inicio-planejamento').value,
+                priorizacao_pedidos: document.getElementById('priorizacao-pedidos').value.trim()
+            };
+
+            // Generate planning
+            const response = await fetch('/api/programacao/gerar_programacao', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(config)
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro ao gerar programação');
+            }
+
+            // Store results
+            dadosOriginais = result;
+
+            // Show results
+            showResults(result);
+            document.getElementById('results-tabs').classList.remove('hidden');
+            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
+
+        } catch (error) {
+            alert(`Erro: ${error.message}`);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async function enviarParaSankhya() {
+        if (!dadosOriginais || !dadosOriginais.programacao_data || dadosOriginais.programacao_data.length === 0) {
+            alert('Não há dados de programação para enviar. Por favor, gere ou carregue um planejamento primeiro.');
+            return;
+        }
+
+        if (!confirm('Tem certeza que deseja enviar este planejamento para o Sankhya?')) {
+            return;
+        }
+
+        showLoading();
+
+        try {
+            const response = await fetch('/api/gantt/enviar_para_sankhya', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ programacao_data: dadosOriginais.programacao_data })
+            });
+
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Erro desconhecido ao enviar para o Sankhya.');
+            }
+
+            alert(result.message); // Ex: "Planejamento enviado com sucesso para o Sankhya."
+        } catch (error) {
+            alert(`Erro ao enviar para o Sankhya: ${error.message}`);
+        } finally {
+            hideLoading();
+        }
+    }
+
+    async function uploadFiles() {
+        const uploads = [
+            { file: setupFile, url: '/api/programacao/upload_setup', status: 'setup-status' },
+            { file: faltasFile, url: '/api/programacao/upload_faltas', status: 'faltas-status' }
+        ];
+
+        if (cadastroMoldesFile) {
+            uploads.push({ file: cadastroMoldesFile, url: '/api/programacao/upload_cadastro_moldes', status: 'cadastro-status' });
+        }
+
+        for (const upload of uploads) {
+            if (!await uploadFile(upload.file, upload.url, upload.status)) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    async function uploadFile(file, url, statusId) {
+        if (!file) return true;
+
+        const formData = new FormData();
+        formData.append('file', file);
+
+        try {
+            const response = await fetch(url, {
+                method: 'POST',
+                body: formData
+            });
+
+            const result = await response.json();
+            const statusElement = document.getElementById(statusId);
+
+            if (!response.ok) {
+                statusElement.textContent = `Erro: ${result.error}`;
+                statusElement.className = 'mt-1 text-xs text-red-500';
+                return false;
+            }
+
+            statusElement.textContent = result.message;
+            statusElement.className = 'mt-1 text-xs text-green-500';
+            return true;
+
+        } catch (error) {
+            const statusElement = document.getElementById(statusId);
+            statusElement.textContent = `Erro de rede: ${error.message}`;
+            statusElement.className = 'mt-1 text-xs text-red-500';
+            return false;
+        }
+    }
+
+    function showResults(data) {
+        // Update summary cards
+        updateSummaryCards(data);
+
+        // Generate alerts
+        generateAlerts(data);
+
+        // Create charts
+        createCharts(data);
+
+        // Fill tables
+        fillTables(data);
+
+        // Generate optimization suggestions
+        generateOptimizationSuggestions(data);
+
+        // Clear previous Gantt charts to be recreated on tab click
+        document.getElementById('gantt-moldes').innerHTML = '';
+        document.getElementById('gantt-pedidos').innerHTML = '';
+    }
+
+    function updateSummaryCards(data) {
+        const pedidos = data.programacao_data ? new Set(data.programacao_data.map(item => item.Pedido)).size : 0;
+        const ociosos = data.moldes_ociosos_data ? data.moldes_ociosos_data.length : 0;
+        const semMolde = data.necessidade_sem_moldes_data
+            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0).length
+            : 0;
+
+        // Cálculo da Taxa de Ocupação
+        let taxaOcupacao = '0%';
+        if (data.programacao_data && data.moldes_ociosos_data && data.dias_programacao > 0) {
+            const moldesUsados = new Set(data.programacao_data.map(item => item.Produto));
+            const moldesOciosos = new Set(data.moldes_ociosos_data.map(item => item.Nome));
+            const totalMoldes = new Set([...moldesUsados, ...moldesOciosos]).size;
+
+            if (totalMoldes > 0) {
+                // Total de "molde-dias" disponíveis no período
+                const totalDiasDisponiveis = totalMoldes * data.dias_programacao;
+
+                // Total de "molde-dias" que foram efetivamente utilizados
+                const diasDeUsoEfetivo = new Set(data.programacao_data.map(item => `${item.Produto}|${item['Data Prevista']}`)).size;
+
+                if (totalDiasDisponiveis > 0) {
+                    taxaOcupacao = ((diasDeUsoEfetivo / totalDiasDisponiveis) * 100).toFixed(1) + '%';
+                }
+            }
+        }
+
+        document.getElementById('resumo-pedidos').textContent = pedidos;
+        document.getElementById('resumo-ociosos').textContent = ociosos;
+        document.getElementById('resumo-sem-molde').textContent = semMolde;
+        document.getElementById('resumo-ocupacao').textContent = taxaOcupacao;
+    }
+
+    function generateAlerts(data) {
+        const alertsContainer = document.getElementById('alertas-lista');
+        alertsContainer.innerHTML = '';
+
+        const alerts = [];
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
+
+        // Check for order and stock quantities
+        if (data.programacao_data) {
+            const customerOrdersData = data.programacao_data.filter(item =>
+                !stockOrderIds.includes(String(item.Pedido))
+            );
+            const stockOrdersData = data.programacao_data.filter(item =>
+                stockOrderIds.includes(String(item.Pedido))
+            );
+
+            // 1. "X pedidos foram programados"
+            const uniqueCustomerOrdersCount = new Set(customerOrdersData.map(item => item.Pedido)).size;
+            if (uniqueCustomerOrdersCount > 0) {
+                alerts.push({
+                    type: 'info',
+                    icon: 'fa-shopping-cart',
+                    message: `${uniqueCustomerOrdersCount.toLocaleString('pt-BR')} pedidos foram programados.`
+                });
+            }
+
+            // 2. "X itens foram programados para pedidos"
+            const totalItemsForCustomers = customerOrdersData.reduce((sum, item) => sum + item["Quantidade Programada"], 0);
+            if (totalItemsForCustomers > 0) {
+                alerts.push({
+                    type: 'info',
+                    icon: 'fa-box-open',
+                    message: `${totalItemsForCustomers.toLocaleString('pt-BR')} itens foram programados para pedidos.`
+                });
+            }
+
+            // 3. "X Itens foram programados para Estoque"
+            const totalItemsForStock = stockOrdersData.reduce((sum, item) => sum + item["Quantidade Programada"], 0);
+            if (totalItemsForStock > 0) {
+                alerts.push({
+                    type: 'info',
+                    icon: 'fa-warehouse',
+                    message: `${totalItemsForStock.toLocaleString('pt-BR')} Itens foram programados para Estoque.`
+                });
+            }
+        }
+
+        // Check for idle molds
+        if (data.moldes_ociosos_data && data.moldes_ociosos_data.length > 0) {
+            const idleMolds = data.moldes_ociosos_data.length;
+            alerts.push({
+                type: 'warning',
+                icon: 'fa-exclamation-circle',
+                message: `${idleMolds} moldes ficarão ociosos durante o período.`
+            });
+        }
+
+        // Check for products without molds
+        const necessidadeFiltrada = data.necessidade_sem_moldes_data
+            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0)
+            : [];
+
+        if (necessidadeFiltrada.length > 0) {
+            const withoutMolds = necessidadeFiltrada.length;
+            alerts.push({
+                type: 'error',
+                icon: 'fa-exclamation-triangle',
+                message: `${withoutMolds} produtos precisam de moldes para atender a demanda.`
+            });
+        }
+
+        // Render alerts
+        alerts.forEach(alert => {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `p-3 rounded-lg mb-2 ${getAlertClass(alert.type)}`;
+            alertDiv.innerHTML = `
+                <div class="flex items-center">
+                    <i class="fas ${alert.icon || getAlertIcon(alert.type)} mr-2"></i>
+                    <span>${alert.message}</span>
+                </div>
+            `;
+            alertsContainer.appendChild(alertDiv);
+        });
+
+        if (alerts.length === 0) {
+            alertsContainer.innerHTML = '<p class="text-gray-400">Nenhum alerta encontrado.</p>';
+        }
+    }
+
+    function getAlertClass(type) {
+        switch (type) {
+            case 'error': return 'bg-error text-white';
+            case 'warning': return 'bg-warning text-gray-800';
+            case 'info': return 'bg-accent text-white';
+            default: return 'bg-primary-light text-white';
+        }
+    }
+
+    function getAlertIcon(type) {
+        switch (type) {
+            case 'error': return 'fa-exclamation-triangle';
+            case 'warning': return 'fa-exclamation-circle';
+            case 'info': return 'fa-info-circle';
+            default: return 'fa-info';
+        }
+    }
+
+    function createCharts(data) {
+        if (data.programacao_data) {
+            createProductChart(data.programacao_data);
+            createEvolutionChart(data.programacao_data);
+            createBranchChart(data.programacao_data);
+            createMoldChart(data.programacao_data);
+        }
+    }
+
+    function createProductChart(data) {
+        const ctx = document.getElementById('graficoProdutos').getContext('2d');
+
+        const produtos = [...new Set(data.map(item => item.Produto))];
+        const quantidades = produtos.map(produto =>
+            data.filter(item => item.Produto === produto)
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
+        new Chart(ctx, {
+            type: 'bar',
+            data: {
+                labels: produtos,
+                datasets: [{
+                    label: 'Quantidade Programada',
+                    data: quantidades, // Accent Color
+                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    borderWidth: 1
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    },
+                    x: {
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+
+    function createEvolutionChart(data) {
+        const ctx = document.getElementById('graficoEvolucao').getContext('2d');
+
+        // Destrói o gráfico anterior, se existir, para evitar sobreposição de tooltips e dados
+        const existingChart = Chart.getChart(ctx);
+        if (existingChart) {
+            existingChart.destroy();
+        }
+
+        // Define os pedidos que são considerados para estoque (consistente com o resto da aplicação)
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
+
+        // Ordena as datas corretamente (formato DD/MM/YYYY)
+        const datas = [...new Set(data.map(item => item["Data Prevista"]))].sort((a, b) => {
+            const partsA = a.split('/'); // [DD, MM, YYYY]
+            const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
+            const partsB = b.split('/'); // [DD, MM, YYYY]
+            const dateB = new Date(partsB[2], partsB[1] - 1, partsB[0]);
+            return dateA - dateB;
+        });
+
+        // Calcula a quantidade total por data
+        const quantidadesTotais = datas.map(data_item =>
+            data.filter(item => item["Data Prevista"] === data_item)
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
+        // Calcula a quantidade apenas para pedidos de estoque
+        const quantidadesEstoque = datas.map(data_item =>
+            data.filter(item =>
+                item["Data Prevista"] === data_item &&
+                stockOrderIds.includes(String(item.Pedido))
+            )
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
+        new Chart(ctx, {
+            type: 'line',
+            data: {
+                labels: datas,
+                datasets: [{
+                    label: 'Quantidade Total',
+                    data: quantidadesTotais, // Accent Color
+                    borderColor: 'rgba(52, 152, 219, 1)',
+                    backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Quantidade para Estoque', // Success Color
+                    data: quantidadesEstoque,
+                    borderColor: 'rgba(46, 204, 113, 1)',
+                    backgroundColor: 'rgba(46, 204, 113, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                },
+                scales: {
+                    y: {
+                        beginAtZero: true,
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    },
+                    x: {
+                        ticks: { color: 'white' },
+                        grid: { color: 'rgba(255, 255, 255, 0.1)' }
+                    }
+                }
+            }
+        });
+    }
+
+    function createBranchChart(data) {
+        const ctx = document.getElementById('graficoBracos').getContext('2d');
+
+        const bracos = [...new Set(data.map(item => item.Braço))];
+        const quantidades = bracos.map(braco =>
+            data.filter(item => item.Braço === braco)
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
+        new Chart(ctx, {
+            type: 'pie',
+            data: {
+                labels: bracos.map(b => `Braço ${b}`),
+                datasets: [{
+                    data: quantidades,
+                    backgroundColor: [
+                        'rgba(52, 152, 219, 0.7)', // Blue
+                        'rgba(46, 204, 113, 0.7)', // Green
+                        'rgba(243, 156, 18, 0.7)', // Orange
+                        'rgba(26, 188, 156, 0.7)', // Turquoise
+                        'rgba(155, 89, 182, 0.7)', // Purple
+                        'rgba(231, 76, 60, 0.7)'  // Red
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                }
+            }
+        });
+    }
+
+    function createMoldChart(data) {
+        const ctx = document.getElementById('graficoMoldesPorBraco').getContext('2d');
+
+        const bracos = [...new Set(data.map(item => item.Braço))];
+        const moldes = bracos.map(braco => {
+            const bracoData = data.filter(item => item.Braço === braco);
+            return bracoData.reduce((sum, item) => sum + item["Quantidade de Moldes"], 0);
+        });
+
+        new Chart(ctx, {
+            type: 'doughnut',
+            data: {
+                labels: bracos.map(b => `Braço ${b}`),
+                datasets: [{
+                    data: moldes,
+                    backgroundColor: [
+                        'rgba(52, 152, 219, 0.7)', // Blue
+                        'rgba(46, 204, 113, 0.7)', // Green
+                        'rgba(243, 156, 18, 0.7)', // Orange
+                        'rgba(26, 188, 156, 0.7)', // Turquoise
+                        'rgba(155, 89, 182, 0.7)', // Purple
+                        'rgba(231, 76, 60, 0.7)'  // Red
+                    ]
+                }]
+            },
+            options: {
+                responsive: true,
+                plugins: {
+                    legend: { labels: { color: 'white' } }
+                }
+            }
+        });
+    }
+
+    function fillTables(data) {
+        // Fill programming table
+        if (data.programacao_data) {
+            // Initialize filtered data with all data and render the first page
+            programacaoFilteredData = [...data.programacao_data];
+            programacaoCurrentPage = 1;
+            renderProgramacaoPage(programacaoCurrentPage);
+            setupProgramacaoPagination();
+        } else {
+            // Clear table and pagination if no data
+            document.getElementById('programacao-table').querySelector('tbody').innerHTML = '<tr><td colspan="9" class="text-center p-4 text-secondary">Sem dados de programação.</td></tr>';
+            document.getElementById('programacao-pagination').innerHTML = '';
+        }
+
+        // Fill idle molds table
+        const ociososTable = document.getElementById('ociosos-table').querySelector('tbody');
+        ociososTable.innerHTML = '';
+
+        if (data.moldes_ociosos_data) {
+            data.moldes_ociosos_data.forEach(item => {
+                const row = ociososTable.insertRow();
+                row.innerHTML = `
+                    <td class="px-4 py-2">${item.Nome}</td>
+                    <td class="px-4 py-2">${item.Quantidade}</td>
+                    <td class="px-4 py-2">${item["Rodada Ociosa"]}</td>
+                    <td class="px-4 py-2">${item.Braço}</td>
+                `;
+            });
+        }
+
+        // Fill necessity table
+        const necessidadeTable = document.getElementById('necessidade-table').querySelector('tbody');
+        necessidadeTable.innerHTML = '';
+
+        if (data.necessidade_sem_moldes_data) {
+            const necessidadeFiltrada = data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0);
+
+            // Agrupar por produto e somar quantidades
+            const necessidadeAgrupada = necessidadeFiltrada.reduce((acc, item) => {
+                const produtoNome = item.Produto || item.Nome;
+                if (!acc[produtoNome]) {
+                    acc[produtoNome] = {
+                        Produto: produtoNome,
+                        Quantidade: 0,
+                        "Qtd. Moldes Cadastrados": item["Qtd. Moldes Cadastrados"]
+                    };
+                }
+                acc[produtoNome].Quantidade += item.Quantidade;
+                return acc;
+            }, {});
+
+            // Converter para array e ordenar
+            const listaAgrupada = Object.values(necessidadeAgrupada);
+            listaAgrupada.sort((a, b) => b.Quantidade - a.Quantidade);
+
+            listaAgrupada.forEach(item => {
+                const row = necessidadeTable.insertRow();
+                row.innerHTML = `
+                    <td class="px-4 py-2">${item.Produto}</td>
+                    <td class="px-4 py-2">${item.Quantidade}</td>
+                    <td class="px-4 py-2">${item["Qtd. Moldes Cadastrados"]}</td>
+                `;
+            });
+        }
+
+        // Fill stock production table
+        const estoqueTable = document.getElementById('estoque-table').querySelector('tbody');
+        estoqueTable.innerHTML = '';
+
+        if (data.programacao_data) {
+            const stockOrderIds = ["9999997", "9999998", "9999999"];
+            const stockTypeMap = {
+                "9999997": "ESTOQUE MINI",
+                "9999998": "ESTOQUE MED",
+                "9999999": "ESTOQUE MAX"
+            };
+
+            const stockProductionData = data.programacao_data.filter(item =>
+                stockOrderIds.includes(String(item.Pedido))
+            );
+
+            if (stockProductionData.length > 0) {
+                const groupedByProduct = stockProductionData.reduce((acc, item) => {
+                    const produto = item.Produto;
+                    const braco = item.Braço;
+                    const moldes = item["Quantidade de Moldes"];
+
+                    if (!acc[produto]) {
+                        acc[produto] = {
+                            totalQuantity: 0,
+                            stockTypes: new Set(),
+                            moldCountByArm: {}
+                        };
+                    }
+                    acc[produto].totalQuantity += item["Quantidade Programada"];
+                    acc[produto].stockTypes.add(stockTypeMap[String(item.Pedido)]);
+
+                    if (braco && moldes !== undefined) {
+                        acc[produto].moldCountByArm[braco] = moldes;
+                    }
+
+                    return acc;
+                }, {});
+
+                const sortedStockProduction = Object.entries(groupedByProduct)
+                    .map(([produto, data]) => {
+                        const armDetails = Object.entries(data.moldCountByArm)
+                            .map(([arm, count]) => `Braço ${arm} (${count})`)
+                            .join(', ');
+                        return { produto, ...data, armDetails };
+                    })
+                    .sort((a, b) => b.totalQuantity - a.totalQuantity);
+
+                sortedStockProduction.forEach(item => {
+                    const row = estoqueTable.insertRow();
+                    row.innerHTML = `
+                        <td class="px-4 py-2">${item.produto}</td>
+                        <td class="px-4 py-2">${Array.from(item.stockTypes).join(', ')}</td>
+                        <td class="px-4 py-2">${item.armDetails}</td>
+                        <td class="px-4 py-2">${item.totalQuantity.toLocaleString('pt-BR')}</td>
+                    `;
+                });
+            } else {
+                estoqueTable.innerHTML = '<tr><td colspan="4" class="px-4 py-2 text-gray-400 text-center">Nenhum molde está produzindo para estoque.</td></tr>';
+            }
+        }
+    }
+
+    function generateOptimizationSuggestions(data) {
+        const container = document.getElementById('sugestoes-otimizacao-container');
+        container.innerHTML = ''; // Clear previous suggestions
+
+        // Criteria: Stock orders MED (9999998) and MAX (9999999)
+        const removableStockOrderIds = ["9999998", "9999999"];
+
+        // 1. Find removal candidates: Molds producing for stock MED/MAX
+        const removalCandidates = (data.programacao_data || [])
+            .filter(item => removableStockOrderIds.includes(String(item.Pedido)))
+            .map(item => ({
+                produto: item.Produto,
+                braco: item.Braço,
+                tipoEstoque: String(item.Pedido) === "9999998" ? "Estoque Médio" : "Estoque Máximo"
+            }))
+            // Get unique combinations of product and arm
+            .filter((item, index, self) =>
+                index === self.findIndex(t => t.produto === item.produto && t.braco === item.braco)
+            );
+
+        // 2. Find installation candidates: Molds from "Necessidade Sem Moldes"
+        // We prioritize those with higher quantity needed.
+
+        // FIX: Create a separate, normalized list for optimization suggestions
+        // to handle cases where the product name is in the 'Nome' property instead of 'Produto'.
+        const necessidadeSemMoldesParaOtimizacao = (data.necessidade_sem_moldes_data || []).map(item => {
+            return {
+                Pedido: item.Pedido,
+                Produto: item.Produto || item.Nome,
+                Quantidade: item.Quantidade,
+                "Qtd. Moldes Cadastrados": item["Qtd. Moldes Cadastrados"]
+            };
+        });
+
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
+
+        const installationCandidates = necessidadeSemMoldesParaOtimizacao
+            // Filtro 1: Garantir que é um problema de molde, não de cadastro
+            .filter(item => item["Qtd. Moldes Cadastrados"] > 0)
+            // Filtro 2: Garantir que a necessidade é para um pedido de cliente, não de estoque
+            .filter(item => item.Pedido && !stockOrderIds.includes(String(parseInt(item.Pedido))))
+            .sort((a, b) => b.Quantidade - a.Quantidade);
+
+        if (removalCandidates.length === 0 || installationCandidates.length === 0) {
+            container.innerHTML = '<p class="text-gray-400 text-center">Nenhuma sugestão de otimização encontrada.</p>';
+            return;
+        }
+
+        // 3. Generate suggestions by matching candidates
+        const suggestions = [];
+        const usedInstallationCandidates = new Set();
+
+        for (const removal of removalCandidates) {
+            // Find an installation candidate that hasn't been used yet
+            const installation = installationCandidates.find(inst => inst.Produto && !usedInstallationCandidates.has(inst.Produto));
+
+            if (installation) {
+                suggestions.push({
+                    remover: removal,
+                    instalar: installation
+                });
+                // Mark this installation candidate as used to avoid suggesting it again
+                usedInstallationCandidates.add(installation.Produto);
+            }
+        }
+
+        // 4. Display suggestions
+        if (suggestions.length > 0) {
+            suggestions.forEach(sug => {
+                const suggestionDiv = document.createElement('div');
+                suggestionDiv.className = 'bg-gray-800 p-4 rounded-lg border-l-4 border-yellow-500';
+                suggestionDiv.innerHTML = `
+                    <div class="flex items-start">
+                        <div class="flex-shrink-0">
+                            <i class="fas fa-lightbulb text-yellow-400 text-xl"></i>
+                        </div>
+                        <div class="ml-3">
+                            <p class="text-sm text-gray-300">
+                                Para atender a pedidos em espera, considere remover o molde de
+                                <strong class="text-white">${sug.remover.produto}</strong> (produzindo para ${sug.remover.tipoEstoque})
+                                do <strong class="text-white">Braço ${sug.remover.braco}</strong> e instalar o molde de
+                                <strong class="text-white">${sug.instalar.Produto}</strong>.
+                            </p>
+                            <p class="text-xs text-gray-400 mt-1">
+                                Isso pode liberar capacidade para produzir ${sug.instalar.Quantidade.toLocaleString('pt-BR')} itens do produto ${sug.instalar.Produto}.
+                            </p>
+                        </div>
+                    </div>
+                `;
+                container.appendChild(suggestionDiv);
+            });
+        } else {
+            container.innerHTML = '<p class="text-gray-400 text-center">Nenhuma sugestão de otimização encontrada.</p>';
+        }
+    }
+
+    function createGanttCharts(data) {
+        if (!data.programacao_data) return;
+
+        // Create mold occupation Gantt
+        createMoldGantt(data.programacao_data);
+
+        // Create order completion Gantt
+        createOrderGantt(data.programacao_data);
+    }
+
+    function createMoldGantt(data) {
+        const ganttData = processDataForMoldGantt(data);
+
+        if (ganttData.length > 0) {
+            const gantt = new Gantt("#gantt-moldes", ganttData, {
+                header_height: 50,
+                column_width: 30,
+                step: 24,
+                view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
+                bar_height: 20,
+                bar_corner_radius: 3,
+                arrow_curve: 5,
+                padding: 18,
+                view_mode: 'Day',
+                date_format: 'DD/MM/YYYY',
+                custom_popup_html: null
+            });
+
+            // Rola o gráfico para a data de hoje
+            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+            const today = new Date();
+            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+            if (today_element && gantt.$container) {
+                // Pega a posição X do elemento de data
+                const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                const text_width = today_element.getBBox().width;
+                // Centraliza a data de hoje na visualização do container
+                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+            }
+
+            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+            const ganttContainer = document.querySelector('#gantt-moldes');
+            const header = ganttContainer.querySelector('.grid-header');
+            if (ganttContainer && header) {
+                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                // movendo-o para o final do seu container SVG pai.
+                header.parentNode.appendChild(header);
+
+                ganttContainer.addEventListener('scroll', () => {
+                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                });
+            }
+        }
+    }
+
+    function createOrderGantt(data) {
+        const ganttData = processDataForOrderGantt(data);
+
+        if (ganttData.length > 0) {
+            const gantt = new Gantt("#gantt-pedidos", ganttData, {
+                header_height: 50,
+                column_width: 30,
+                step: 24,
+                view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
+                bar_height: 20,
+                bar_corner_radius: 3,
+                arrow_curve: 5,
+                padding: 18,
+                view_mode: 'Day',
+                date_format: 'DD/MM/YYYY',
+                custom_popup_html: null
+            });
+
+            // Rola o gráfico para a data de hoje
+            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+            const today = new Date();
+            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+            if (today_element && gantt.$container) {
+                // Pega a posição X do elemento de data
+                const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                const text_width = today_element.getBBox().width;
+                // Centraliza a data de hoje na visualização do container
+                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+            }
+
+            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+            const ganttContainer = document.querySelector('#gantt-pedidos');
+            const header = ganttContainer.querySelector('.grid-header');
+            if (ganttContainer && header) {
+                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                // movendo-o para o final do seu container SVG pai.
+                header.parentNode.appendChild(header);
+
+                ganttContainer.addEventListener('scroll', () => {
+                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                });
+            }
+        }
+    }
+
+    function processDataForMoldGantt(data) {
+        const ganttTasks = [];
+        const moldOccupation = {};
+
+        // Group dates by mold
+        data.forEach(item => {
+            const key = `${item.Produto}-${item.Braço}`;
+            const date = item["Data Prevista"];
+
+            if (!date) return; // Skip items without a date
+
+            if (!moldOccupation[key]) {
+                moldOccupation[key] = {};
+            }
+            moldOccupation[key][date] = true; // Mark date as occupied
+        });
+
+        // Convert to Gantt format
+        Object.keys(moldOccupation).forEach((key, index) => {
+            let dates = Object.keys(moldOccupation[key]);
+
+            if (dates.length === 0) return;
+
+            // Sort dates chronologically
+            dates.sort((a, b) => {
+                const [dayA, monthA, yearA] = a.split('/');
+                const [dayB, monthB, yearB] = b.split('/');
+                return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
+            });
+
+            const startDate = convertDateFormat(dates[0]);
+            const endDateParts = dates[dates.length - 1].split('/');
+            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+
+            ganttTasks.push({
+                id: `mold-${index}`,
+                name: key,
+                start: startDate,
+                end: formatDateForGantt(endDateObj),
+                progress: 100
+            });
+        });
+
+        return ganttTasks;
+    }
+
+    function processDataForOrderGantt(data) {
+        const ganttTasks = [];
+        const orderProgress = {};
+
+        // Group dates by order
+        data.forEach(item => {
+            const key = `${item.Pedido}-${item.Produto}`; // Use a composite key for robustness
+            const date = item["Data Prevista"];
+
+            if (!date) return; // Skip items without a date
+
+            if (!orderProgress[key]) {
+                orderProgress[key] = {};
+            }
+            orderProgress[key][date] = true; // Mark date as part of the order's timeline
+        });
+
+        // Convert to Gantt format
+        Object.keys(orderProgress).forEach((key, index) => {
+            let dates = Object.keys(orderProgress[key]); // Get unique dates from keys
+
+            if (dates.length === 0) return;
+
+            // Sort dates chronologically
+            dates.sort((a, b) => {
+                const [dayA, monthA, yearA] = a.split('/');
+                const [dayB, monthB, yearB] = b.split('/');
+                return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
+            });
+
+            const startDate = convertDateFormat(dates[0]);
+            const endDateParts = dates[dates.length - 1].split('/');
+            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+
+            // Add custom classes for styling based on order type
+            const orderId = key.split('-')[0];
+            const isStockOrder = ["9999997", "9999998", "9999999"].includes(String(orderId));
+            const customClass = isStockOrder ? 'bar-stock' : 'bar-order';
+
+            ganttTasks.push({
+                id: `order-${index}`,
+                name: `Pedido ${key}`,
+                start: startDate,
+                end: formatDateForGantt(endDateObj),
+                progress: 100,
+                custom_class: customClass
+            });
+        });
+
+        return ganttTasks;
+    }
+
+    function formatDateForGantt(date) {
+        const year = date.getFullYear();
+        const month = String(date.getMonth() + 1).padStart(2, '0');
+        const day = String(date.getDate()).padStart(2, '0');
+        return `${year}-${month}-${day}`;
+    }
+
+    function convertDateFormat(dateStr) {
+        // Convert from DD/MM/YYYY to YYYY-MM-DD
+        const parts = dateStr.split('/');
+        return `${parts[2]}-${parts[1]}-${parts[0]}`;
+    }
+
+    function showTab(tabName) {
+        // Hide all tab contents
+        document.querySelectorAll('.tab-content').forEach(content => {
+            content.classList.add('hidden');
+        });
+
+        // Show selected tab content
+        const targetTab = tabName === 'gantt-tab' ? 'gantt-tab-content' : `${tabName}-tab`;
+        document.getElementById(targetTab).classList.remove('hidden');
+
+        // Update tab buttons
+        document.querySelectorAll('.tab-button').forEach(button => {
+            button.classList.remove('active');
+        });
+        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+        // Lazy load Gantt charts when their tab is clicked
+        if (tabName === 'gantt-tab') {
+            const ganttContainer = document.getElementById('gantt-moldes');
+            // Check if the container is empty and we have data
+            if (ganttContainer.innerHTML.trim() === '' && dadosOriginais) {
+                // Use a timeout to ensure the container is visible and rendered before creating the chart
+                setTimeout(() => {
+                    createGanttCharts(dadosOriginais);
+                }, 100);
+            }
+        }
+    }
+
+    function filterProgramacao() {
+        const searchTerm = document.getElementById('search-programacao').value.toLowerCase();
+
+        if (!dadosOriginais || !dadosOriginais.programacao_data) return;
+
+        if (searchTerm.trim() === '') {
+            programacaoFilteredData = [...dadosOriginais.programacao_data];
+        } else {
+            programacaoFilteredData = dadosOriginais.programacao_data.filter(item => {
+                // Check against all relevant fields
+                return Object.values(item).some(value =>
+                    String(value).toLowerCase().includes(searchTerm)
+                );
+            });
+        }
+
+        // Reset to page 1 and re-render
+        renderProgramacaoPage(1);
+        setupProgramacaoPagination();
+    }
+
+    function exportProgramacaoToExcel() {
+        if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
+            alert('Não há dados para exportar. A tabela está vazia ou os filtros não retornaram resultados.');
+            return;
+        }
+
+        // Create a new worksheet from the filtered data
+        // The headers will be inferred from the keys of the first object
+        const worksheet = XLSX.utils.json_to_sheet(programacaoFilteredData);
+
+        // Create a new workbook
+        const workbook = XLSX.utils.book_new();
+
+        // Append the worksheet to the workbook with a custom sheet name
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Programação Detalhada');
+
+        // Generate a timestamp for a unique filename
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+        const filename = `programacao_detalhada_${timestamp}.xlsx`;
+
+        // Write the workbook and trigger the download
+        XLSX.writeFile(workbook, filename);
+    }
+
+    function renderProgramacaoPage(page) {
+        programacaoCurrentPage = page;
+        const tableBody = document.getElementById('programacao-table').querySelector('tbody');
+        tableBody.innerHTML = '';
+
+        if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-secondary">Nenhum resultado encontrado.</td></tr>';
+            setupProgramacaoPagination(); // Update pagination to show 0 pages
+            return;
+        }
+
+        const start = (page - 1) * programacaoRowsPerPage;
+        const end = start + programacaoRowsPerPage;
+        const paginatedItems = programacaoFilteredData.slice(start, end);
+
+        paginatedItems.forEach(item => {
+            const row = tableBody.insertRow();
+            row.innerHTML = `
+                <td class="px-4 py-2">${item["Número da Rodada"]}</td>
+                <td class="px-4 py-2">${item["Data Prevista"]}</td>
+                <td class="px-4 py-2">${item.Braço}</td>
+                <td class="px-4 py-2">${item.Produto}</td>
+                <td class="px-4 py-2">${item.Cor}</td>
+                <td class="px-4 py-2">${item.Pedido}</td>
+                <td class="px-4 py-2">${item.CODPROD}</td>
+                <td class="px-4 py-2">${item["Quantidade de Moldes"]}</td>
+                <td class="px-4 py-2">${item["Quantidade Programada"]}</td>
+            `;
+        });
+    }
+
+    function setupProgramacaoPagination() {
+        const paginationContainer = document.getElementById('programacao-pagination');
+        paginationContainer.innerHTML = '';
+        const pageCount = Math.ceil(programacaoFilteredData.length / programacaoRowsPerPage);
+
+        if (pageCount <= 1) return;
+
+        const prevButton = document.createElement('button');
+        prevButton.innerHTML = '<i class="fas fa-chevron-left mr-2"></i> Anterior';
+        prevButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
+        prevButton.disabled = programacaoCurrentPage === 1;
+        prevButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage - 1); setupProgramacaoPagination(); });
+        paginationContainer.appendChild(prevButton);
+
+        const pageInfo = document.createElement('span');
+        pageInfo.className = 'text-secondary';
+        const totalItems = programacaoFilteredData.length;
+        const startItem = (programacaoCurrentPage - 1) * programacaoRowsPerPage + 1;
+        const endItem = Math.min(startItem + programacaoRowsPerPage - 1, totalItems);
+        pageInfo.textContent = `Mostrando ${startItem}-${endItem} de ${totalItems} | Página ${programacaoCurrentPage} de ${pageCount}`;
+        paginationContainer.appendChild(pageInfo);
+
+        const nextButton = document.createElement('button');
+        nextButton.innerHTML = 'Próximo <i class="fas fa-chevron-right ml-2"></i>';
+        nextButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
+        nextButton.disabled = programacaoCurrentPage === pageCount;
+        nextButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage + 1); setupProgramacaoPagination(); });
+        paginationContainer.appendChild(nextButton);
+    }
+
+    async function fetchAndSetLatestPlanningData() {
+        try {
+            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
+            }
+            dadosOriginais = result.ultimo_planejamento;
+            return true;
+        } catch (error) {
+            alert(`Erro ao buscar último planejamento: ${error.message}`);
+            dadosOriginais = null; // Limpa os dados em caso de erro
+            return false;
+        }
+    }
+
+    async function carregarUltimoPlanejamento() {
+        showLoading();
+        const success = await fetchAndSetLatestPlanningData();
+        if (success) {
+            goToStep(3);
+
+            showResults(dadosOriginais);
+            document.getElementById('results-tabs').classList.remove('hidden');
+            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
+        }
+        hideLoading();
+    }
+
+    function showLoading() {
+        document.getElementById('loading-layer').classList.remove('hidden');
+    }
+
+    function hideLoading() {
+        document.getElementById('loading-layer').classList.add('hidden');
+    }
+
+    // Global functions for onclick handlers
+    window.carregarUltimoPlanejamento = carregarUltimoPlanejamento;
+});

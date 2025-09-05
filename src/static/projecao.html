@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Planejamento de Produção - MRP/PCP</title>
+    <title>Projeção - Sistema MRP/PCP</title>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -300,7 +300,7 @@
             </div>
 
             <nav class="space-y-2">
-                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="dashboard">
+                <a href="index_new.html" class="nav-item flex items-center p-3 rounded-lg" data-section="dashboard">
                     <i class="fas fa-tachometer-alt mr-3"></i>
                     <span>Visão Geral</span>
                 </a>
@@ -322,7 +322,7 @@
                     <i class="fas fa-calendar-alt mr-3"></i>
                     <span>Gráficos Gantt</span>
                 </a>
-                <a href="projecao.html" class="nav-item flex items-center p-3 rounded-lg" data-section="projecao">
+                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="projecao">
                     <i class="fas fa-chart-line mr-3"></i>
                     <span>Projeção</span>
                 </a>
@@ -354,134 +354,58 @@
     <!-- Main Content -->
     <div id="main-content" class="ml-64 min-h-screen transition-all duration-300">
 
-        <!-- Dashboard Section -->
-        <div id="dashboard-section" class="section p-8">
-            <div class="mb-8">
-                <h2 class="text-3xl font-bold text-accent mb-2">Visão Geral do Sistema</h2>
-                <p class="text-secondary">Acompanhe os principais indicadores do seu planejamento de produção</p>
-            </div>
-
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div class="kpi-card p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Total de Pedidos</p>
-                            <p id="kpi-pedidos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-shopping-cart text-3xl opacity-80"></i>
-                    </div>
+        <!-- Projeção Section -->
+        <div id="projecao-section" class="section p-8">
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-accent mb-2">Projeção de Finalização</h2>
+                    <p class="text-secondary">Análise da quantidade e valor dos pedidos a serem finalizados diariamente.
+                    </p>
                 </div>
-
-                <div class="kpi-card-green p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Taxa de Ocupação</p>
-                            <p id="kpi-ocupacao" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-percentage text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-blue p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Total de Itens para Pedidos</p>
-                            <p id="kpi-itens-pedidos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-boxes text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-teal p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Itens para Estoque</p>
-                            <p id="kpi-itens-estoque" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-warehouse text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-red p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Produtos Sem Molde</p>
-                            <p id="kpi-criticos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-exclamation-triangle text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-yellow p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Moldes Ociosos</p>
-                            <p id="kpi-ociosos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-tools text-3xl opacity-80"></i>
-                    </div>
-                </div>
-            </div>
-
-            <!-- Order Search -->
-            <div class="bg-primary-light rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-accent mb-4">Consultar Pedido</h3>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-4">
-                    <input type="text" id="pedido-search-input" placeholder="Digite o número do pedido"
-                        class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
-                    <button id="pedido-search-btn"
-                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-search mr-2"></i>
-                        Pesquisar
+                <div>
+                    <button id="load-latest-for-projecao-btn"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Carregar Último Planejamento
                     </button>
                 </div>
-                <div id="pedido-search-results-container" class="hidden mt-4">
-                    <!-- Search results will be displayed here -->
-                </div>
             </div>
 
-            <!-- Gantt Comparison -->
-            <div class="bg-primary-light rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-accent mb-4">Análise de Atrasos (Últimas 2 Programações)</h3>
-                <div id="gantt-comparacao-atrasos" class="gantt-container">
-                    <p class="text-secondary">Carregando análise de atrasos...</p>
+            <div class="space-y-8">
+                <!-- Gráfico de Quantidade -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de Pedidos Finalizados por Dia</h3>
+                    <div id="projecao-chart-container" style="height: 400px;">
+                        <canvas id="graficoProjecaoPedidos"></canvas>
+                    </div>
                 </div>
-                <!-- Tabela de detalhes dos atrasos -->
-                <div id="tabela-comparacao-atrasos" class="mt-6 hidden">
-                    <!-- A tabela será gerada aqui via JavaScript -->
-                </div>
-            </div>
 
-            <!-- Recent History -->
-            <div class="bg-primary-light rounded-lg p-6">
-                <h3 class="text-xl font-semibold text-accent mb-4">Histórico Recente</h3>
-                <div id="historico-recente" class="space-y-3">
-                    <p class="text-secondary">Carregando histórico...</p>
+                <!-- Gráfico de Quantidade de Itens -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de Itens Planejados por Dia</h3>
+                    <div id="projecao-itens-chart-container" style="height: 400px;">
+                        <canvas id="graficoProjecaoItens"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Valor -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Valor Liberado por Dia (R$)</h3>
+                    <div id="projecao-valor-chart-container" style="height: 400px;">
+                        <canvas id="graficoProjecaoValor"></canvas>
+                    </div>
+                </div>
+
+                <!-- Tabela de Detalhes dos Pedidos -->
+                <div id="projecao-detalhes-container" class="hidden bg-primary-dark rounded-lg p-6">
+                    <!-- O conteúdo será gerado dinamicamente via JS -->
                 </div>
             </div>
         </div>
 
     </div>
 
-    <!-- Modal para Carregar Simulação -->
-    <div id="load-simulation-modal"
-        class="fixed inset-0 bg-primary-dark bg-opacity-80 z-50 flex items-center justify-center hidden">
-        <div class="bg-primary-light rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
-                <h3 class="text-xl font-semibold text-accent">Carregar Simulação de Setup</h3>
-                <button id="close-simulation-modal-btn" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times text-2xl"></i>
-                </button>
-            </div>
-            <div id="simulation-list-container" class="overflow-y-auto space-y-3 pr-2">
-                <!-- A lista de simulações será populada aqui -->
-                <p class="text-secondary text-center py-8">Carregando simulações salvas...</p>
-            </div>
-        </div>
-    </div>
-
-    <script src="script_new.js"></script>
+    <script src="projecao.js"></script>
 </body>
 
 </html>

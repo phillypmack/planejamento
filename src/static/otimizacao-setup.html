@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Sistema de Planejamento de Produção - MRP/PCP</title>
+    <title>Otimização de Setup - Sistema MRP/PCP</title>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -300,7 +300,7 @@
             </div>
 
             <nav class="space-y-2">
-                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="dashboard">
+                <a href="index_new.html" class="nav-item flex items-center p-3 rounded-lg" data-section="dashboard">
                     <i class="fas fa-tachometer-alt mr-3"></i>
                     <span>Visão Geral</span>
                 </a>
@@ -326,8 +326,7 @@
                     <i class="fas fa-chart-line mr-3"></i>
                     <span>Projeção</span>
                 </a>
-                <a href="otimizacao-setup.html" class="nav-item flex items-center p-3 rounded-lg"
-                    data-section="otimizacao-setup">
+                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="otimizacao-setup">
                     <i class="fas fa-sliders-h mr-3"></i>
                     <span>Otimização de Setup</span>
                 </a>
@@ -354,110 +353,86 @@
     <!-- Main Content -->
     <div id="main-content" class="ml-64 min-h-screen transition-all duration-300">
 
-        <!-- Dashboard Section -->
-        <div id="dashboard-section" class="section p-8">
+        <!-- Otimização de Setup Section -->
+        <div id="otimizacao-setup-section" class="section p-8">
             <div class="mb-8">
-                <h2 class="text-3xl font-bold text-accent mb-2">Visão Geral do Sistema</h2>
-                <p class="text-secondary">Acompanhe os principais indicadores do seu planejamento de produção</p>
+                <h2 class="text-3xl font-bold text-accent mb-2">Otimização de Setup</h2>
+                <p class="text-secondary">Analise a alocação atual de moldes nos braços e identifique oportunidades de
+                    remanejamento.</p>
             </div>
 
-            <!-- KPI Cards -->
-            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 mb-8">
-                <div class="kpi-card p-6 rounded-lg text-white">
+            <!-- KPI Cards for Otimização -->
+            <div id="otimizacao-kpi-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8 hidden">
+                <div class="kpi-card-blue p-6 rounded-lg text-white">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm opacity-80">Total de Pedidos</p>
-                            <p id="kpi-pedidos" class="text-2xl font-bold">-</p>
+                            <p class="text-sm opacity-80">Moldes para Pedidos</p>
+                            <p id="otimizacao-kpi-pedidos" class="text-2xl font-bold">-</p>
                         </div>
                         <i class="fas fa-shopping-cart text-3xl opacity-80"></i>
                     </div>
                 </div>
-
-                <div class="kpi-card-green p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Taxa de Ocupação</p>
-                            <p id="kpi-ocupacao" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-percentage text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-blue p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Total de Itens para Pedidos</p>
-                            <p id="kpi-itens-pedidos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-boxes text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-teal p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Itens para Estoque</p>
-                            <p id="kpi-itens-estoque" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-warehouse text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
-                <div class="kpi-card-red p-6 rounded-lg text-white">
-                    <div class="flex items-center justify-between">
-                        <div>
-                            <p class="text-sm opacity-80">Produtos Sem Molde</p>
-                            <p id="kpi-criticos" class="text-2xl font-bold">-</p>
-                        </div>
-                        <i class="fas fa-exclamation-triangle text-3xl opacity-80"></i>
-                    </div>
-                </div>
-
                 <div class="kpi-card-yellow p-6 rounded-lg text-white">
                     <div class="flex items-center justify-between">
                         <div>
-                            <p class="text-sm opacity-80">Moldes Ociosos</p>
-                            <p id="kpi-ociosos" class="text-2xl font-bold">-</p>
+                            <p class="text-sm opacity-80">Estoque Mínimo</p>
+                            <p id="otimizacao-kpi-estoque-min" class="text-2xl font-bold">-</p>
                         </div>
-                        <i class="fas fa-tools text-3xl opacity-80"></i>
+                        <i class="fas fa-battery-quarter text-3xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="kpi-card-green p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Estoque Médio</p>
+                            <p id="otimizacao-kpi-estoque-med" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-battery-half text-3xl opacity-80"></i>
+                    </div>
+                </div>
+                <div class="kpi-card-red p-6 rounded-lg text-white">
+                    <div class="flex items-center justify-between">
+                        <div>
+                            <p class="text-sm opacity-80">Estoque Máximo</p>
+                            <p id="otimizacao-kpi-estoque-max" class="text-2xl font-bold">-</p>
+                        </div>
+                        <i class="fas fa-battery-full text-3xl opacity-80"></i>
                     </div>
                 </div>
             </div>
 
-            <!-- Order Search -->
-            <div class="bg-primary-light rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-accent mb-4">Consultar Pedido</h3>
-                <div class="flex flex-col sm:flex-row space-y-2 sm:space-y-0 sm:space-x-2 mb-4">
-                    <input type="text" id="pedido-search-input" placeholder="Digite o número do pedido"
-                        class="flex-grow bg-gray-700 text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
-                    <button id="pedido-search-btn"
-                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center justify-center">
-                        <i class="fas fa-search mr-2"></i>
-                        Pesquisar
-                    </button>
-                </div>
-                <div id="pedido-search-results-container" class="hidden mt-4">
-                    <!-- Search results will be displayed here -->
-                </div>
-            </div>
-
-            <!-- Gantt Comparison -->
-            <div class="bg-primary-light rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-accent mb-4">Análise de Atrasos (Últimas 2 Programações)</h3>
-                <div id="gantt-comparacao-atrasos" class="gantt-container">
-                    <p class="text-secondary">Carregando análise de atrasos...</p>
-                </div>
-                <!-- Tabela de detalhes dos atrasos -->
-                <div id="tabela-comparacao-atrasos" class="mt-6 hidden">
-                    <!-- A tabela será gerada aqui via JavaScript -->
-                </div>
-            </div>
-
-            <!-- Recent History -->
             <div class="bg-primary-light rounded-lg p-6">
-                <h3 class="text-xl font-semibold text-accent mb-4">Histórico Recente</h3>
-                <div id="historico-recente" class="space-y-3">
-                    <p class="text-secondary">Carregando histórico...</p>
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
+                    <h3 class="text-xl font-semibold">Alocação de Moldes por Braço</h3>
+                    <div class="flex items-center space-x-2">
+                        <span id="simulation-mode-notice" class="text-yellow-400 font-semibold hidden"><i
+                                class="fas fa-flask mr-2"></i>Modo Simulação Ativo</span>
+                        <button id="reset-simulation-btn"
+                            class="bg-error hover:bg-error-dark text-white font-semibold py-1 px-3 rounded-lg text-sm flex items-center hidden">
+                            <i class="fas fa-undo mr-2"></i>
+                            Resetar
+                        </button>
+                        <button id="save-simulation-btn"
+                            class="bg-success hover:bg-success-dark text-white font-semibold py-1 px-3 rounded-lg text-sm flex items-center hidden">
+                            <i class="fas fa-save mr-2"></i>
+                            Salvar
+                        </button>
+                        <button id="load-simulation-btn"
+                            class="bg-purple-600 hover:bg-purple-700 text-white font-semibold py-1 px-3 rounded-lg text-sm flex items-center">
+                            <i class="fas fa-folder-open mr-2"></i>
+                            Carregar Simulação
+                        </button>
+                        <button id="load-latest-for-otimizacao-btn"
+                            class="bg-accent hover:bg-accent-dark text-white font-semibold py-1 px-3 rounded-lg text-sm flex items-center">
+                            <i class="fas fa-sync-alt mr-2"></i>
+                            Carregar Último
+                        </button>
+                    </div>
+                </div>
+                <div id="otimizacao-setup-container" class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                    <!-- Table will be populated by JS -->
+                    <p class="text-secondary text-center py-8 md:col-span-2">Clique em "Carregar Último" para ver a
+                        alocação de moldes.</p>
                 </div>
             </div>
         </div>
@@ -481,7 +456,7 @@
         </div>
     </div>
 
-    <script src="script_new.js"></script>
+    <script src="otimizacao-setup.js"></script>
 </body>
 
 </html>
