@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Gráficos Gantt - Sistema MRP/PCP</title>
+    <title>Pontos de Atenção - Sistema MRP/PCP</title>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -308,7 +308,7 @@
                     <i class="fas fa-file-alt mr-3"></i>
                     <span>Relatórios</span>
                 </a>
-                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="gantt">
+                <a href="graficos-gantt.html" class="nav-item flex items-center p-3 rounded-lg" data-section="gantt">
                     <i class="fas fa-calendar-alt mr-3"></i>
                     <span>Gráficos Gantt</span>
                 </a>
@@ -321,8 +321,7 @@
                     <i class="fas fa-sliders-h mr-3"></i>
                     <span>Otimização de Setup</span>
                 </a>
-                <a href="pontos-atencao.html" class="nav-item flex items-center p-3 rounded-lg"
-                    data-section="pontos-atencao">
+                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="pontos-atencao">
                     <i class="fas fa-exclamation-triangle mr-3"></i>
                     <span>Pontos de Atenção</span>
                 </a>
@@ -358,17 +357,16 @@
             </div>
         </div>
 
-
-        <!-- Gantt Section -->
-        <div id="gantt-section" class="section p-8">
+        <!-- Pontos de Atenção Section -->
+        <div id="atencao-section" class="section p-8">
             <div class="mb-8 flex justify-between items-center">
                 <div>
-                    <h2 class="text-3xl font-bold text-accent mb-2">Gráficos Gantt</h2>
-                    <p class="text-secondary">Visualização temporal da programação com base no último planejamento
-                        gerado.</p>
+                    <h2 class="text-3xl font-bold text-accent mb-2">Pontos de Atenção</h2>
+                    <p class="text-secondary">Análise de moldes ociosos, necessidades e sugestões com base no último
+                        planejamento.</p>
                 </div>
                 <div>
-                    <button id="reload-gantt-btn"
+                    <button id="reload-data-btn"
                         class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center">
                         <i class="fas fa-sync-alt mr-2"></i>
                         Recarregar Dados
@@ -376,23 +374,66 @@
                 </div>
             </div>
 
-
-            <div class="space-y-8">
-                <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Ocupação de Moldes na Timeline</h3>
-                    <div id="gantt-moldes-full" class="gantt-container"></div>
+            <div class="space-y-6">
+                <div class="bg-primary-light rounded-lg p-4">
+                    <h4 class="font-semibold mb-3 text-lg text-yellow-400">Moldes Ociosos</h4>
+                    <div class="overflow-x-auto max-h-72">
+                        <table id="ociosos-table" class="min-w-full text-sm text-left text-main">
+                            <thead class="text-xs text-main uppercase bg-primary-dark">
+                                <tr>
+                                    <th class="px-4 py-3">Nome</th>
+                                    <th class="px-4 py-3">Quantidade</th>
+                                    <th class="px-4 py-3">Rodada Ociosa</th>
+                                    <th class="px-4 py-3">Braço</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
                 </div>
-
-                <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Previsão de Conclusão de Pedidos</h3>
-                    <div id="gantt-pedidos-full" class="gantt-container"></div>
+                <div class="bg-primary-light rounded-lg p-4">
+                    <h4 class="font-semibold mb-3 text-lg text-red-400">Necessidade Sem Moldes</h4>
+                    <div class="overflow-x-auto max-h-72">
+                        <table id="necessidade-table" class="min-w-full text-sm text-left text-main">
+                            <thead class="text-xs text-main uppercase bg-primary-dark">
+                                <tr>
+                                    <th class="px-4 py-3">Produto</th>
+                                    <th class="px-4 py-3">Quantidade Faltante</th>
+                                    <th class="px-4 py-3">Qtd. Moldes Cadastrados</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="bg-primary-light rounded-lg p-4">
+                    <h4 class="font-semibold mb-3 text-lg text-green-400">Moldes Produzindo para Estoque</h4>
+                    <div class="overflow-x-auto max-h-72">
+                        <table id="estoque-table" class="min-w-full text-sm text-left text-main">
+                            <thead class="text-xs text-main uppercase bg-primary-dark">
+                                <tr>
+                                    <th class="px-4 py-3">Produto (Molde)</th>
+                                    <th class="px-4 py-3">Tipo de Estoque</th>
+                                    <th class="px-4 py-3">Braços (Qtd. Moldes)</th>
+                                    <th class="px-4 py-3">Quantidade Total</th>
+                                </tr>
+                            </thead>
+                            <tbody></tbody>
+                        </table>
+                    </div>
+                </div>
+                <div class="bg-primary-light rounded-lg p-4">
+                    <h4 class="font-semibold mb-3 text-lg text-blue-400">Sugestões de Otimização</h4>
+                    <div id="sugestoes-otimizacao-container" class="space-y-3">
+                        <!-- Suggestions will be injected here by JS -->
+                    </div>
                 </div>
             </div>
         </div>
 
     </div>
 
-    <script src="graficos-gantt.js"></script>
+    <script src="pontos-atencao.js"></script>
 </body>
 
 </html>

@@ -326,9 +326,6 @@ document.addEventListener("DOMContentLoaded", () => {
         // Fill tables
         fillTables(data);
 
-        // Generate optimization suggestions
-        generateOptimizationSuggestions(data);
-
         // Clear previous Gantt charts to be recreated on tab click
         document.getElementById('gantt-moldes').innerHTML = '';
         document.getElementById('gantt-pedidos').innerHTML = '';
@@ -682,531 +679,321 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('programacao-pagination').innerHTML = '';
         }
 
-        // Fill idle molds table
-        const ociososTable = document.getElementById('ociosos-table').querySelector('tbody');
-        ociososTable.innerHTML = '';
+        function createGanttCharts(data) {
+            if (!data.programacao_data) return;
 
-        if (data.moldes_ociosos_data) {
-            data.moldes_ociosos_data.forEach(item => {
-                const row = ociososTable.insertRow();
-                row.innerHTML = `
-                    <td class="px-4 py-2">${item.Nome}</td>
-                    <td class="px-4 py-2">${item.Quantidade}</td>
-                    <td class="px-4 py-2">${item["Rodada Ociosa"]}</td>
-                    <td class="px-4 py-2">${item.Braço}</td>
-                `;
-            });
+            // Create mold occupation Gantt
+            createMoldGantt(data.programacao_data);
+
+            // Create order completion Gantt
+            createOrderGantt(data.programacao_data);
         }
 
-        // Fill necessity table
-        const necessidadeTable = document.getElementById('necessidade-table').querySelector('tbody');
-        necessidadeTable.innerHTML = '';
+        function createMoldGantt(data) {
+            const ganttData = processDataForMoldGantt(data);
 
-        if (data.necessidade_sem_moldes_data) {
-            const necessidadeFiltrada = data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0);
+            if (ganttData.length > 0) {
+                const gantt = new Gantt("#gantt-moldes", ganttData, {
+                    header_height: 50,
+                    column_width: 30,
+                    step: 24,
+                    view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
+                    bar_height: 20,
+                    bar_corner_radius: 3,
+                    arrow_curve: 5,
+                    padding: 18,
+                    view_mode: 'Day',
+                    date_format: 'DD/MM/YYYY',
+                    custom_popup_html: null
+                });
 
-            // Agrupar por produto e somar quantidades
-            const necessidadeAgrupada = necessidadeFiltrada.reduce((acc, item) => {
-                const produtoNome = item.Produto || item.Nome;
-                if (!acc[produtoNome]) {
-                    acc[produtoNome] = {
-                        Produto: produtoNome,
-                        Quantidade: 0,
-                        "Qtd. Moldes Cadastrados": item["Qtd. Moldes Cadastrados"]
-                    };
+                // Rola o gráfico para a data de hoje
+                // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+                const today = new Date();
+                const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+                // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+                // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+                const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+                if (today_element && gantt.$container) {
+                    // Pega a posição X do elemento de data
+                    const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                    const text_width = today_element.getBBox().width;
+                    // Centraliza a data de hoje na visualização do container
+                    gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
                 }
-                acc[produtoNome].Quantidade += item.Quantidade;
-                return acc;
-            }, {});
 
-            // Converter para array e ordenar
-            const listaAgrupada = Object.values(necessidadeAgrupada);
-            listaAgrupada.sort((a, b) => b.Quantidade - a.Quantidade);
+                // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+                const ganttContainer = document.querySelector('#gantt-moldes');
+                const header = ganttContainer.querySelector('.grid-header');
+                if (ganttContainer && header) {
+                    // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                    // movendo-o para o final do seu container SVG pai.
+                    header.parentNode.appendChild(header);
 
-            listaAgrupada.forEach(item => {
-                const row = necessidadeTable.insertRow();
-                row.innerHTML = `
-                    <td class="px-4 py-2">${item.Produto}</td>
-                    <td class="px-4 py-2">${item.Quantidade}</td>
-                    <td class="px-4 py-2">${item["Qtd. Moldes Cadastrados"]}</td>
-                `;
-            });
+                    ganttContainer.addEventListener('scroll', () => {
+                        // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                        header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                    });
+                }
+            }
         }
 
-        // Fill stock production table
-        const estoqueTable = document.getElementById('estoque-table').querySelector('tbody');
-        estoqueTable.innerHTML = '';
+        function createOrderGantt(data) {
+            const ganttData = processDataForOrderGantt(data);
 
-        if (data.programacao_data) {
-            const stockOrderIds = ["9999997", "9999998", "9999999"];
-            const stockTypeMap = {
-                "9999997": "ESTOQUE MINI",
-                "9999998": "ESTOQUE MED",
-                "9999999": "ESTOQUE MAX"
-            };
-
-            const stockProductionData = data.programacao_data.filter(item =>
-                stockOrderIds.includes(String(item.Pedido))
-            );
-
-            if (stockProductionData.length > 0) {
-                const groupedByProduct = stockProductionData.reduce((acc, item) => {
-                    const produto = item.Produto;
-                    const braco = item.Braço;
-                    const moldes = item["Quantidade de Moldes"];
-
-                    if (!acc[produto]) {
-                        acc[produto] = {
-                            totalQuantity: 0,
-                            stockTypes: new Set(),
-                            moldCountByArm: {}
-                        };
-                    }
-                    acc[produto].totalQuantity += item["Quantidade Programada"];
-                    acc[produto].stockTypes.add(stockTypeMap[String(item.Pedido)]);
-
-                    if (braco && moldes !== undefined) {
-                        acc[produto].moldCountByArm[braco] = moldes;
-                    }
-
-                    return acc;
-                }, {});
-
-                const sortedStockProduction = Object.entries(groupedByProduct)
-                    .map(([produto, data]) => {
-                        const armDetails = Object.entries(data.moldCountByArm)
-                            .map(([arm, count]) => `Braço ${arm} (${count})`)
-                            .join(', ');
-                        return { produto, ...data, armDetails };
-                    })
-                    .sort((a, b) => b.totalQuantity - a.totalQuantity);
-
-                sortedStockProduction.forEach(item => {
-                    const row = estoqueTable.insertRow();
-                    row.innerHTML = `
-                        <td class="px-4 py-2">${item.produto}</td>
-                        <td class="px-4 py-2">${Array.from(item.stockTypes).join(', ')}</td>
-                        <td class="px-4 py-2">${item.armDetails}</td>
-                        <td class="px-4 py-2">${item.totalQuantity.toLocaleString('pt-BR')}</td>
-                    `;
+            if (ganttData.length > 0) {
+                const gantt = new Gantt("#gantt-pedidos", ganttData, {
+                    header_height: 50,
+                    column_width: 30,
+                    step: 24,
+                    view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
+                    bar_height: 20,
+                    bar_corner_radius: 3,
+                    arrow_curve: 5,
+                    padding: 18,
+                    view_mode: 'Day',
+                    date_format: 'DD/MM/YYYY',
+                    custom_popup_html: null
                 });
+
+                // Rola o gráfico para a data de hoje
+                // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
+                const today = new Date();
+                const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
+                // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
+                // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
+                const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
+
+                if (today_element && gantt.$container) {
+                    // Pega a posição X do elemento de data
+                    const today_x_pos = parseFloat(today_element.getAttribute('x'));
+                    const text_width = today_element.getBBox().width;
+                    // Centraliza a data de hoje na visualização do container
+                    gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+                }
+
+                // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
+                const ganttContainer = document.querySelector('#gantt-pedidos');
+                const header = ganttContainer.querySelector('.grid-header');
+                if (ganttContainer && header) {
+                    // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
+                    // movendo-o para o final do seu container SVG pai.
+                    header.parentNode.appendChild(header);
+
+                    ganttContainer.addEventListener('scroll', () => {
+                        // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
+                        header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                    });
+                }
+            }
+        }
+
+        function processDataForMoldGantt(data) {
+            const ganttTasks = [];
+            const moldOccupation = {};
+
+            // Group dates by mold
+            data.forEach(item => {
+                const key = `${item.Produto}-${item.Braço}`;
+                const date = item["Data Prevista"];
+
+                if (!date) return; // Skip items without a date
+
+                if (!moldOccupation[key]) {
+                    moldOccupation[key] = {};
+                }
+                moldOccupation[key][date] = true; // Mark date as occupied
+            });
+
+            // Convert to Gantt format
+            Object.keys(moldOccupation).forEach((key, index) => {
+                let dates = Object.keys(moldOccupation[key]);
+
+                if (dates.length === 0) return;
+
+                // Sort dates chronologically
+                dates.sort((a, b) => {
+                    const [dayA, monthA, yearA] = a.split('/');
+                    const [dayB, monthB, yearB] = b.split('/');
+                    return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
+                });
+
+                const startDate = convertDateFormat(dates[0]);
+                const endDateParts = dates[dates.length - 1].split('/');
+                const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+                endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+
+                ganttTasks.push({
+                    id: `mold-${index}`,
+                    name: key,
+                    start: startDate,
+                    end: formatDateForGantt(endDateObj),
+                    progress: 100
+                });
+            });
+
+            return ganttTasks;
+        }
+
+        function processDataForOrderGantt(data) {
+            const ganttTasks = [];
+            const orderProgress = {};
+
+            // Group dates by order
+            data.forEach(item => {
+                const key = `${item.Pedido}-${item.Produto}`; // Use a composite key for robustness
+                const date = item["Data Prevista"];
+
+                if (!date) return; // Skip items without a date
+
+                if (!orderProgress[key]) {
+                    orderProgress[key] = {};
+                }
+                orderProgress[key][date] = true; // Mark date as part of the order's timeline
+            });
+
+            // Convert to Gantt format
+            Object.keys(orderProgress).forEach((key, index) => {
+                let dates = Object.keys(orderProgress[key]); // Get unique dates from keys
+
+                if (dates.length === 0) return;
+
+                // Sort dates chronologically
+                dates.sort((a, b) => {
+                    const [dayA, monthA, yearA] = a.split('/');
+                    const [dayB, monthB, yearB] = b.split('/');
+                    return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
+                });
+
+                const startDate = convertDateFormat(dates[0]);
+                const endDateParts = dates[dates.length - 1].split('/');
+                const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
+                endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
+
+                // Add custom classes for styling based on order type
+                const orderId = key.split('-')[0];
+                const isStockOrder = ["9999997", "9999998", "9999999"].includes(String(orderId));
+                const customClass = isStockOrder ? 'bar-stock' : 'bar-order';
+
+                ganttTasks.push({
+                    id: `order-${index}`,
+                    name: `Pedido ${key}`,
+                    start: startDate,
+                    end: formatDateForGantt(endDateObj),
+                    progress: 100,
+                    custom_class: customClass
+                });
+            });
+
+            return ganttTasks;
+        }
+
+        function formatDateForGantt(date) {
+            const year = date.getFullYear();
+            const month = String(date.getMonth() + 1).padStart(2, '0');
+            const day = String(date.getDate()).padStart(2, '0');
+            return `${year}-${month}-${day}`;
+        }
+
+        function convertDateFormat(dateStr) {
+            // Convert from DD/MM/YYYY to YYYY-MM-DD
+            const parts = dateStr.split('/');
+            return `${parts[2]}-${parts[1]}-${parts[0]}`;
+        }
+
+        function showTab(tabName) {
+            // Hide all tab contents
+            document.querySelectorAll('.tab-content').forEach(content => {
+                content.classList.add('hidden');
+            });
+
+            // Show selected tab content
+            const targetTab = tabName === 'gantt-tab' ? 'gantt-tab-content' : `${tabName}-tab`;
+            document.getElementById(targetTab).classList.remove('hidden');
+
+            // Update tab buttons
+            document.querySelectorAll('.tab-button').forEach(button => {
+                button.classList.remove('active');
+            });
+            document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
+
+            // Lazy load Gantt charts when their tab is clicked
+            if (tabName === 'gantt-tab') {
+                const ganttContainer = document.getElementById('gantt-moldes');
+                // Check if the container is empty and we have data
+                if (ganttContainer.innerHTML.trim() === '' && dadosOriginais) {
+                    // Use a timeout to ensure the container is visible and rendered before creating the chart
+                    setTimeout(() => {
+                        createGanttCharts(dadosOriginais);
+                    }, 100);
+                }
+            }
+        }
+
+        function filterProgramacao() {
+            const searchTerm = document.getElementById('search-programacao').value.toLowerCase();
+
+            if (!dadosOriginais || !dadosOriginais.programacao_data) return;
+
+            if (searchTerm.trim() === '') {
+                programacaoFilteredData = [...dadosOriginais.programacao_data];
             } else {
-                estoqueTable.innerHTML = '<tr><td colspan="4" class="px-4 py-2 text-gray-400 text-center">Nenhum molde está produzindo para estoque.</td></tr>';
-            }
-        }
-    }
-
-    function generateOptimizationSuggestions(data) {
-        const container = document.getElementById('sugestoes-otimizacao-container');
-        container.innerHTML = ''; // Clear previous suggestions
-
-        // Criteria: Stock orders MED (9999998) and MAX (9999999)
-        const removableStockOrderIds = ["9999998", "9999999"];
-
-        // 1. Find removal candidates: Molds producing for stock MED/MAX
-        const removalCandidates = (data.programacao_data || [])
-            .filter(item => removableStockOrderIds.includes(String(item.Pedido)))
-            .map(item => ({
-                produto: item.Produto,
-                braco: item.Braço,
-                tipoEstoque: String(item.Pedido) === "9999998" ? "Estoque Médio" : "Estoque Máximo"
-            }))
-            // Get unique combinations of product and arm
-            .filter((item, index, self) =>
-                index === self.findIndex(t => t.produto === item.produto && t.braco === item.braco)
-            );
-
-        // 2. Find installation candidates: Molds from "Necessidade Sem Moldes"
-        // We prioritize those with higher quantity needed.
-
-        // FIX: Create a separate, normalized list for optimization suggestions
-        // to handle cases where the product name is in the 'Nome' property instead of 'Produto'.
-        const necessidadeSemMoldesParaOtimizacao = (data.necessidade_sem_moldes_data || []).map(item => {
-            return {
-                Pedido: item.Pedido,
-                Produto: item.Produto || item.Nome,
-                Quantidade: item.Quantidade,
-                "Qtd. Moldes Cadastrados": item["Qtd. Moldes Cadastrados"]
-            };
-        });
-
-        const stockOrderIds = ["9999997", "9999998", "9999999"];
-
-        const installationCandidates = necessidadeSemMoldesParaOtimizacao
-            // Filtro 1: Garantir que é um problema de molde, não de cadastro
-            .filter(item => item["Qtd. Moldes Cadastrados"] > 0)
-            // Filtro 2: Garantir que a necessidade é para um pedido de cliente, não de estoque
-            .filter(item => item.Pedido && !stockOrderIds.includes(String(parseInt(item.Pedido))))
-            .sort((a, b) => b.Quantidade - a.Quantidade);
-
-        if (removalCandidates.length === 0 || installationCandidates.length === 0) {
-            container.innerHTML = '<p class="text-gray-400 text-center">Nenhuma sugestão de otimização encontrada.</p>';
-            return;
-        }
-
-        // 3. Generate suggestions by matching candidates
-        const suggestions = [];
-        const usedInstallationCandidates = new Set();
-
-        for (const removal of removalCandidates) {
-            // Find an installation candidate that hasn't been used yet
-            const installation = installationCandidates.find(inst => inst.Produto && !usedInstallationCandidates.has(inst.Produto));
-
-            if (installation) {
-                suggestions.push({
-                    remover: removal,
-                    instalar: installation
-                });
-                // Mark this installation candidate as used to avoid suggesting it again
-                usedInstallationCandidates.add(installation.Produto);
-            }
-        }
-
-        // 4. Display suggestions
-        if (suggestions.length > 0) {
-            suggestions.forEach(sug => {
-                const suggestionDiv = document.createElement('div');
-                suggestionDiv.className = 'bg-gray-800 p-4 rounded-lg border-l-4 border-yellow-500';
-                suggestionDiv.innerHTML = `
-                    <div class="flex items-start">
-                        <div class="flex-shrink-0">
-                            <i class="fas fa-lightbulb text-yellow-400 text-xl"></i>
-                        </div>
-                        <div class="ml-3">
-                            <p class="text-sm text-gray-300">
-                                Para atender a pedidos em espera, considere remover o molde de
-                                <strong class="text-white">${sug.remover.produto}</strong> (produzindo para ${sug.remover.tipoEstoque})
-                                do <strong class="text-white">Braço ${sug.remover.braco}</strong> e instalar o molde de
-                                <strong class="text-white">${sug.instalar.Produto}</strong>.
-                            </p>
-                            <p class="text-xs text-gray-400 mt-1">
-                                Isso pode liberar capacidade para produzir ${sug.instalar.Quantidade.toLocaleString('pt-BR')} itens do produto ${sug.instalar.Produto}.
-                            </p>
-                        </div>
-                    </div>
-                `;
-                container.appendChild(suggestionDiv);
-            });
-        } else {
-            container.innerHTML = '<p class="text-gray-400 text-center">Nenhuma sugestão de otimização encontrada.</p>';
-        }
-    }
-
-    function createGanttCharts(data) {
-        if (!data.programacao_data) return;
-
-        // Create mold occupation Gantt
-        createMoldGantt(data.programacao_data);
-
-        // Create order completion Gantt
-        createOrderGantt(data.programacao_data);
-    }
-
-    function createMoldGantt(data) {
-        const ganttData = processDataForMoldGantt(data);
-
-        if (ganttData.length > 0) {
-            const gantt = new Gantt("#gantt-moldes", ganttData, {
-                header_height: 50,
-                column_width: 30,
-                step: 24,
-                view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
-                bar_height: 20,
-                bar_corner_radius: 3,
-                arrow_curve: 5,
-                padding: 18,
-                view_mode: 'Day',
-                date_format: 'DD/MM/YYYY',
-                custom_popup_html: null
-            });
-
-            // Rola o gráfico para a data de hoje
-            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
-            const today = new Date();
-            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
-            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
-            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
-            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
-
-            if (today_element && gantt.$container) {
-                // Pega a posição X do elemento de data
-                const today_x_pos = parseFloat(today_element.getAttribute('x'));
-                const text_width = today_element.getBBox().width;
-                // Centraliza a data de hoje na visualização do container
-                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
-            }
-
-            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
-            const ganttContainer = document.querySelector('#gantt-moldes');
-            const header = ganttContainer.querySelector('.grid-header');
-            if (ganttContainer && header) {
-                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
-                // movendo-o para o final do seu container SVG pai.
-                header.parentNode.appendChild(header);
-
-                ganttContainer.addEventListener('scroll', () => {
-                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
-                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
+                programacaoFilteredData = dadosOriginais.programacao_data.filter(item => {
+                    // Check against all relevant fields
+                    return Object.values(item).some(value =>
+                        String(value).toLowerCase().includes(searchTerm)
+                    );
                 });
             }
+
+            // Reset to page 1 and re-render
+            renderProgramacaoPage(1);
+            setupProgramacaoPagination();
         }
-    }
 
-    function createOrderGantt(data) {
-        const ganttData = processDataForOrderGantt(data);
-
-        if (ganttData.length > 0) {
-            const gantt = new Gantt("#gantt-pedidos", ganttData, {
-                header_height: 50,
-                column_width: 30,
-                step: 24,
-                view_modes: ['Quarter Day', 'Half Day', 'Day', 'Week'],
-                bar_height: 20,
-                bar_corner_radius: 3,
-                arrow_curve: 5,
-                padding: 18,
-                view_mode: 'Day',
-                date_format: 'DD/MM/YYYY',
-                custom_popup_html: null
-            });
-
-            // Rola o gráfico para a data de hoje
-            // A função show_date não existe na v0.6.1. Usando um workaround para rolar para a data atual.
-            const today = new Date();
-            const today_string = formatDateForGantt(today); // Formato YYYY-MM-DD
-            // Os cabeçalhos de data são elementos <text> dentro do SVG principal.
-            // A propriedade correta para o SVG é $svg e para o container é $container na v0.6.1.
-            const today_element = gantt.$svg.querySelector(`.date-group text[data-date="${today_string}"]`);
-
-            if (today_element && gantt.$container) {
-                // Pega a posição X do elemento de data
-                const today_x_pos = parseFloat(today_element.getAttribute('x'));
-                const text_width = today_element.getBBox().width;
-                // Centraliza a data de hoje na visualização do container
-                gantt.$container.scrollLeft = today_x_pos + (text_width / 2) - (gantt.$container.offsetWidth / 2);
+        function exportProgramacaoToExcel() {
+            if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
+                alert('Não há dados para exportar. A tabela está vazia ou os filtros não retornaram resultados.');
+                return;
             }
 
-            // Adiciona a funcionalidade de "cabeçalho fixo" via JavaScript
-            const ganttContainer = document.querySelector('#gantt-pedidos');
-            const header = ganttContainer.querySelector('.grid-header');
-            if (ganttContainer && header) {
-                // Garante que o cabeçalho seja renderizado por cima de outros elementos SVG
-                // movendo-o para o final do seu container SVG pai.
-                header.parentNode.appendChild(header);
+            // Create a new worksheet from the filtered data
+            // The headers will be inferred from the keys of the first object
+            const worksheet = XLSX.utils.json_to_sheet(programacaoFilteredData);
 
-                ganttContainer.addEventListener('scroll', () => {
-                    // Move o grupo do cabeçalho para baixo conforme o scroll vertical sobe
-                    header.setAttribute('transform', `translate(0, ${ganttContainer.scrollTop})`);
-                });
+            // Create a new workbook
+            const workbook = XLSX.utils.book_new();
+
+            // Append the worksheet to the workbook with a custom sheet name
+            XLSX.utils.book_append_sheet(workbook, worksheet, 'Programação Detalhada');
+
+            // Generate a timestamp for a unique filename
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const filename = `programacao_detalhada_${timestamp}.xlsx`;
+
+            // Write the workbook and trigger the download
+            XLSX.writeFile(workbook, filename);
+        }
+
+        function renderProgramacaoPage(page) {
+            programacaoCurrentPage = page;
+            const tableBody = document.getElementById('programacao-table').querySelector('tbody');
+            tableBody.innerHTML = '';
+
+            if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
+                tableBody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-secondary">Nenhum resultado encontrado.</td></tr>';
+                setupProgramacaoPagination(); // Update pagination to show 0 pages
+                return;
             }
-        }
-    }
 
-    function processDataForMoldGantt(data) {
-        const ganttTasks = [];
-        const moldOccupation = {};
+            const start = (page - 1) * programacaoRowsPerPage;
+            const end = start + programacaoRowsPerPage;
+            const paginatedItems = programacaoFilteredData.slice(start, end);
 
-        // Group dates by mold
-        data.forEach(item => {
-            const key = `${item.Produto}-${item.Braço}`;
-            const date = item["Data Prevista"];
-
-            if (!date) return; // Skip items without a date
-
-            if (!moldOccupation[key]) {
-                moldOccupation[key] = {};
-            }
-            moldOccupation[key][date] = true; // Mark date as occupied
-        });
-
-        // Convert to Gantt format
-        Object.keys(moldOccupation).forEach((key, index) => {
-            let dates = Object.keys(moldOccupation[key]);
-
-            if (dates.length === 0) return;
-
-            // Sort dates chronologically
-            dates.sort((a, b) => {
-                const [dayA, monthA, yearA] = a.split('/');
-                const [dayB, monthB, yearB] = b.split('/');
-                return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
-            });
-
-            const startDate = convertDateFormat(dates[0]);
-            const endDateParts = dates[dates.length - 1].split('/');
-            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
-            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
-
-            ganttTasks.push({
-                id: `mold-${index}`,
-                name: key,
-                start: startDate,
-                end: formatDateForGantt(endDateObj),
-                progress: 100
-            });
-        });
-
-        return ganttTasks;
-    }
-
-    function processDataForOrderGantt(data) {
-        const ganttTasks = [];
-        const orderProgress = {};
-
-        // Group dates by order
-        data.forEach(item => {
-            const key = `${item.Pedido}-${item.Produto}`; // Use a composite key for robustness
-            const date = item["Data Prevista"];
-
-            if (!date) return; // Skip items without a date
-
-            if (!orderProgress[key]) {
-                orderProgress[key] = {};
-            }
-            orderProgress[key][date] = true; // Mark date as part of the order's timeline
-        });
-
-        // Convert to Gantt format
-        Object.keys(orderProgress).forEach((key, index) => {
-            let dates = Object.keys(orderProgress[key]); // Get unique dates from keys
-
-            if (dates.length === 0) return;
-
-            // Sort dates chronologically
-            dates.sort((a, b) => {
-                const [dayA, monthA, yearA] = a.split('/');
-                const [dayB, monthB, yearB] = b.split('/');
-                return new Date(`${yearA}-${monthA}-${dayA}`) - new Date(`${yearB}-${monthB}-${dayB}`);
-            });
-
-            const startDate = convertDateFormat(dates[0]);
-            const endDateParts = dates[dates.length - 1].split('/');
-            const endDateObj = new Date(endDateParts[2], endDateParts[1] - 1, endDateParts[0]);
-            endDateObj.setDate(endDateObj.getDate() + 1); // End date is exclusive in Frappe Gantt
-
-            // Add custom classes for styling based on order type
-            const orderId = key.split('-')[0];
-            const isStockOrder = ["9999997", "9999998", "9999999"].includes(String(orderId));
-            const customClass = isStockOrder ? 'bar-stock' : 'bar-order';
-
-            ganttTasks.push({
-                id: `order-${index}`,
-                name: `Pedido ${key}`,
-                start: startDate,
-                end: formatDateForGantt(endDateObj),
-                progress: 100,
-                custom_class: customClass
-            });
-        });
-
-        return ganttTasks;
-    }
-
-    function formatDateForGantt(date) {
-        const year = date.getFullYear();
-        const month = String(date.getMonth() + 1).padStart(2, '0');
-        const day = String(date.getDate()).padStart(2, '0');
-        return `${year}-${month}-${day}`;
-    }
-
-    function convertDateFormat(dateStr) {
-        // Convert from DD/MM/YYYY to YYYY-MM-DD
-        const parts = dateStr.split('/');
-        return `${parts[2]}-${parts[1]}-${parts[0]}`;
-    }
-
-    function showTab(tabName) {
-        // Hide all tab contents
-        document.querySelectorAll('.tab-content').forEach(content => {
-            content.classList.add('hidden');
-        });
-
-        // Show selected tab content
-        const targetTab = tabName === 'gantt-tab' ? 'gantt-tab-content' : `${tabName}-tab`;
-        document.getElementById(targetTab).classList.remove('hidden');
-
-        // Update tab buttons
-        document.querySelectorAll('.tab-button').forEach(button => {
-            button.classList.remove('active');
-        });
-        document.querySelector(`[data-tab="${tabName}"]`).classList.add('active');
-
-        // Lazy load Gantt charts when their tab is clicked
-        if (tabName === 'gantt-tab') {
-            const ganttContainer = document.getElementById('gantt-moldes');
-            // Check if the container is empty and we have data
-            if (ganttContainer.innerHTML.trim() === '' && dadosOriginais) {
-                // Use a timeout to ensure the container is visible and rendered before creating the chart
-                setTimeout(() => {
-                    createGanttCharts(dadosOriginais);
-                }, 100);
-            }
-        }
-    }
-
-    function filterProgramacao() {
-        const searchTerm = document.getElementById('search-programacao').value.toLowerCase();
-
-        if (!dadosOriginais || !dadosOriginais.programacao_data) return;
-
-        if (searchTerm.trim() === '') {
-            programacaoFilteredData = [...dadosOriginais.programacao_data];
-        } else {
-            programacaoFilteredData = dadosOriginais.programacao_data.filter(item => {
-                // Check against all relevant fields
-                return Object.values(item).some(value =>
-                    String(value).toLowerCase().includes(searchTerm)
-                );
-            });
-        }
-
-        // Reset to page 1 and re-render
-        renderProgramacaoPage(1);
-        setupProgramacaoPagination();
-    }
-
-    function exportProgramacaoToExcel() {
-        if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
-            alert('Não há dados para exportar. A tabela está vazia ou os filtros não retornaram resultados.');
-            return;
-        }
-
-        // Create a new worksheet from the filtered data
-        // The headers will be inferred from the keys of the first object
-        const worksheet = XLSX.utils.json_to_sheet(programacaoFilteredData);
-
-        // Create a new workbook
-        const workbook = XLSX.utils.book_new();
-
-        // Append the worksheet to the workbook with a custom sheet name
-        XLSX.utils.book_append_sheet(workbook, worksheet, 'Programação Detalhada');
-
-        // Generate a timestamp for a unique filename
-        const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
-        const filename = `programacao_detalhada_${timestamp}.xlsx`;
-
-        // Write the workbook and trigger the download
-        XLSX.writeFile(workbook, filename);
-    }
-
-    function renderProgramacaoPage(page) {
-        programacaoCurrentPage = page;
-        const tableBody = document.getElementById('programacao-table').querySelector('tbody');
-        tableBody.innerHTML = '';
-
-        if (!programacaoFilteredData || programacaoFilteredData.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="9" class="text-center p-4 text-secondary">Nenhum resultado encontrado.</td></tr>';
-            setupProgramacaoPagination(); // Update pagination to show 0 pages
-            return;
-        }
-
-        const start = (page - 1) * programacaoRowsPerPage;
-        const end = start + programacaoRowsPerPage;
-        const paginatedItems = programacaoFilteredData.slice(start, end);
-
-        paginatedItems.forEach(item => {
-            const row = tableBody.insertRow();
-            row.innerHTML = `
+            paginatedItems.forEach(item => {
+                const row = tableBody.insertRow();
+                row.innerHTML = `
                 <td class="px-4 py-2">${item["Número da Rodada"]}</td>
                 <td class="px-4 py-2">${item["Data Prevista"]}</td>
                 <td class="px-4 py-2">${item.Braço}</td>
@@ -1217,77 +1004,77 @@ document.addEventListener("DOMContentLoaded", () => {
                 <td class="px-4 py-2">${item["Quantidade de Moldes"]}</td>
                 <td class="px-4 py-2">${item["Quantidade Programada"]}</td>
             `;
-        });
-    }
+            });
+        }
 
-    function setupProgramacaoPagination() {
-        const paginationContainer = document.getElementById('programacao-pagination');
-        paginationContainer.innerHTML = '';
-        const pageCount = Math.ceil(programacaoFilteredData.length / programacaoRowsPerPage);
+        function setupProgramacaoPagination() {
+            const paginationContainer = document.getElementById('programacao-pagination');
+            paginationContainer.innerHTML = '';
+            const pageCount = Math.ceil(programacaoFilteredData.length / programacaoRowsPerPage);
 
-        if (pageCount <= 1) return;
+            if (pageCount <= 1) return;
 
-        const prevButton = document.createElement('button');
-        prevButton.innerHTML = '<i class="fas fa-chevron-left mr-2"></i> Anterior';
-        prevButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
-        prevButton.disabled = programacaoCurrentPage === 1;
-        prevButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage - 1); setupProgramacaoPagination(); });
-        paginationContainer.appendChild(prevButton);
+            const prevButton = document.createElement('button');
+            prevButton.innerHTML = '<i class="fas fa-chevron-left mr-2"></i> Anterior';
+            prevButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
+            prevButton.disabled = programacaoCurrentPage === 1;
+            prevButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage - 1); setupProgramacaoPagination(); });
+            paginationContainer.appendChild(prevButton);
 
-        const pageInfo = document.createElement('span');
-        pageInfo.className = 'text-secondary';
-        const totalItems = programacaoFilteredData.length;
-        const startItem = (programacaoCurrentPage - 1) * programacaoRowsPerPage + 1;
-        const endItem = Math.min(startItem + programacaoRowsPerPage - 1, totalItems);
-        pageInfo.textContent = `Mostrando ${startItem}-${endItem} de ${totalItems} | Página ${programacaoCurrentPage} de ${pageCount}`;
-        paginationContainer.appendChild(pageInfo);
+            const pageInfo = document.createElement('span');
+            pageInfo.className = 'text-secondary';
+            const totalItems = programacaoFilteredData.length;
+            const startItem = (programacaoCurrentPage - 1) * programacaoRowsPerPage + 1;
+            const endItem = Math.min(startItem + programacaoRowsPerPage - 1, totalItems);
+            pageInfo.textContent = `Mostrando ${startItem}-${endItem} de ${totalItems} | Página ${programacaoCurrentPage} de ${pageCount}`;
+            paginationContainer.appendChild(pageInfo);
 
-        const nextButton = document.createElement('button');
-        nextButton.innerHTML = 'Próximo <i class="fas fa-chevron-right ml-2"></i>';
-        nextButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
-        nextButton.disabled = programacaoCurrentPage === pageCount;
-        nextButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage + 1); setupProgramacaoPagination(); });
-        paginationContainer.appendChild(nextButton);
-    }
+            const nextButton = document.createElement('button');
+            nextButton.innerHTML = 'Próximo <i class="fas fa-chevron-right ml-2"></i>';
+            nextButton.className = 'bg-gray-600 hover:bg-gray-500 text-white font-bold py-2 px-4 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed';
+            nextButton.disabled = programacaoCurrentPage === pageCount;
+            nextButton.addEventListener('click', () => { renderProgramacaoPage(programacaoCurrentPage + 1); setupProgramacaoPagination(); });
+            paginationContainer.appendChild(nextButton);
+        }
 
-    async function fetchAndSetLatestPlanningData() {
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
+        async function fetchAndSetLatestPlanningData() {
+            try {
+                const response = await fetch('/api/gantt/obter_ultimo_planejamento');
+                const result = await response.json();
 
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
+                if (!response.ok) {
+                    throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
+                }
+                dadosOriginais = result.ultimo_planejamento;
+                return true;
+            } catch (error) {
+                alert(`Erro ao buscar último planejamento: ${error.message}`);
+                dadosOriginais = null; // Limpa os dados em caso de erro
+                return false;
             }
-            dadosOriginais = result.ultimo_planejamento;
-            return true;
-        } catch (error) {
-            alert(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null; // Limpa os dados em caso de erro
-            return false;
         }
-    }
 
-    async function carregarUltimoPlanejamento() {
-        showLoading();
-        const success = await fetchAndSetLatestPlanningData();
-        if (success) {
-            goToStep(3);
+        async function carregarUltimoPlanejamento() {
+            showLoading();
+            const success = await fetchAndSetLatestPlanningData();
+            if (success) {
+                goToStep(3);
 
-            showResults(dadosOriginais);
-            document.getElementById('results-tabs').classList.remove('hidden');
-            document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
+                showResults(dadosOriginais);
+                document.getElementById('results-tabs').classList.remove('hidden');
+                document.getElementById('enviar-sankhya-btn').classList.remove('hidden');
+            }
+            hideLoading();
         }
-        hideLoading();
-    }
 
-    function showLoading() {
-        document.getElementById('loading-layer').classList.remove('hidden');
-    }
+        function showLoading() {
+            document.getElementById('loading-layer').classList.remove('hidden');
+        }
 
-    function hideLoading() {
-        document.getElementById('loading-layer').classList.add('hidden');
-    }
+        function hideLoading() {
+            document.getElementById('loading-layer').classList.add('hidden');
+        }
 
-    // Global functions for onclick handlers
-    window.carregarUltimoPlanejamento = carregarUltimoPlanejamento;
-});
+        // Global functions for onclick handlers
+        window.carregarUltimoPlanejamento = carregarUltimoPlanejamento;
+    });

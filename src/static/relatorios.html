@@ -281,16 +281,6 @@
 </head>
 
 <body class="font-sans">
-    <!-- Loading Layer -->
-    <div id="loading-layer"
-        class="fixed inset-0 bg-primary-dark bg-opacity-90 z-50 flex items-center justify-center hidden">
-        <div class="text-center">
-            <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-accent mb-4">
-            </div>
-            <p class="text-xl text-accent font-semibold">Processando...</p>
-        </div>
-    </div>
-
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 shadow-lg z-40">
         <div class="p-6">
@@ -331,6 +321,11 @@
                     <i class="fas fa-sliders-h mr-3"></i>
                     <span>Otimização de Setup</span>
                 </a>
+                <a href="pontos-atencao.html" class="nav-item flex items-center p-3 rounded-lg"
+                    data-section="pontos-atencao">
+                    <i class="fas fa-exclamation-triangle mr-3"></i>
+                    <span>Pontos de Atenção</span>
+                </a>
                 <a href="cadastros.html" class="nav-item flex items-center p-3 rounded-lg" data-section="cadastros">
                     <i class="fas fa-edit mr-3"></i>
                     <span>Cadastros</span>
@@ -352,7 +347,17 @@
     </button>
 
     <!-- Main Content -->
-    <div id="main-content" class="ml-64 min-h-screen transition-all duration-300">
+    <div id="main-content" class="relative ml-64 min-h-screen transition-all duration-300">
+        <!-- Loading Layer -->
+        <div id="loading-layer"
+            class="absolute inset-0 bg-primary-dark bg-opacity-90 z-50 flex items-center justify-center hidden">
+            <div class="text-center">
+                <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-accent mb-4">
+                </div>
+                <p class="text-xl text-accent font-semibold">Processando...</p>
+            </div>
+        </div>
+
 
         <!-- Relatórios Section -->
         <div id="relatorios-section" class="section p-8">
