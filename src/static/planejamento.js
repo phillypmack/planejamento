@@ -560,6 +560,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
         );
 
+        // Calcula a quantidade apenas para pedidos de cliente (não estoque)
+        const quantidadesPedido = datas.map(data_item =>
+            data.filter(item =>
+                item["Data Prevista"] === data_item &&
+                !stockOrderIds.includes(String(item.Pedido))
+            )
+                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        );
+
         // Calcula a quantidade apenas para pedidos de estoque
         const quantidadesEstoque = datas.map(data_item =>
             data.filter(item =>
@@ -578,6 +587,13 @@ document.addEventListener("DOMContentLoaded", () => {
                     data: quantidadesTotais, // Accent Color
                     borderColor: 'rgba(52, 152, 219, 1)',
                     backgroundColor: 'rgba(52, 152, 219, 0.2)',
+                    tension: 0.4,
+                    fill: true
+                }, {
+                    label: 'Quantidade para Pedido',
+                    data: quantidadesPedido,
+                    borderColor: 'rgba(241, 196, 15, 1)', // Warning Color
+                    backgroundColor: 'rgba(241, 196, 15, 0.2)',
                     tension: 0.4,
                     fill: true
                 }, {
