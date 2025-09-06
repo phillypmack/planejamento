@@ -358,8 +358,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
 
         const fullTableHtml = `
-            <h3 class="text-xl font-semibold text-accent mb-4">Pedidos Finalizados em ${data}</h3>
-            <div class="overflow-x-auto max-h-96">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold text-accent">Pedidos Finalizados em ${data}</h3>
+                <button id="export-projecao-detalhes-btn" class="bg-success hover:bg-success-dark text-white font-bold py-1 px-3 rounded-lg flex items-center text-sm">
+                    <i class="fas fa-file-excel mr-2"></i>
+                    Exportar para Excel
+                </button>
+            </div>
+            <div class="overflow-x-auto max-h-96" id="projecao-detalhes-table-container">
                 <table class="min-w-full text-sm text-left text-main">
                     <thead class="text-xs text-main uppercase bg-primary-light sticky top-0">
                         <tr>
@@ -378,6 +384,56 @@ document.addEventListener("DOMContentLoaded", () => {
 
         container.innerHTML = fullTableHtml;
         container.classList.remove('hidden');
+
+        document.getElementById('export-projecao-detalhes-btn').addEventListener('click', () => {
+            exportProjecaoDetalhesToExcel(data, sortedPedidos);
+        });
+
         container.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    function exportProjecaoDetalhesToExcel(data, sortedPedidos) {
+        const dataToExport = [];
+
+        sortedPedidos.forEach(order => {
+            if (order.itens && order.itens.length > 0) {
+                order.itens.forEach(item => {
+                    dataToExport.push({
+                        'Pedido': order.pedidoId,
+                        'Cliente': order.cliente,
+                        'Valor do Pedido (R$)': order.valorPedido,
+                        'Produto': item.produto,
+                        'Cor': item.cor || '-',
+                        'Braço': item.braco || '-',
+                        'Rodada': item.rodada,
+                        'Quantidade': item.quantidade || 0
+                    });
+                });
+            } else {
+                // In case an order has no items, we can still list it.
+                dataToExport.push({
+                    'Pedido': order.pedidoId,
+                    'Cliente': order.cliente,
+                    'Valor do Pedido (R$)': order.valorPedido,
+                    'Produto': '-',
+                    'Cor': '-',
+                    'Braço': '-',
+                    'Rodada': '-',
+                    'Quantidade': 0
+                });
+            }
+        });
+
+        if (dataToExport.length === 0) {
+            alert('Não há dados detalhados para exportar.');
+            return;
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Detalhes Projeção');
+
+        const filename = `projecao_detalhes_${data.replace(/\//g, '-')}.xlsx`;
+        XLSX.writeFile(workbook, filename);
     }
 });
