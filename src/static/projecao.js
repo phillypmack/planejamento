@@ -357,6 +357,60 @@ document.addEventListener("DOMContentLoaded", () => {
             tableBodyHtml += mainRowHtml + detailRowHtml;
         });
 
+        // 4. Sort items for the second table (by arm, then round)
+        const sortedItens = [...detalhes].sort((a, b) => {
+            const bracoA = parseInt(a.braco) || 0;
+            const bracoB = parseInt(b.braco) || 0;
+            const rodadaA = parseInt(a.rodada) || 0;
+            const rodadaB = parseInt(b.rodada) || 0;
+
+            if (bracoA < bracoB) return -1;
+            if (bracoA > bracoB) return 1;
+            if (rodadaA < rodadaB) return -1;
+            if (rodadaA > rodadaB) return 1;
+            return 0;
+        });
+
+        // 5. Build HTML for the second table body
+        const itensTableBodyHtml = sortedItens.map(item => `
+            <tr class="border-b border-gray-700 hover:bg-gray-800">
+                <td class="px-4 py-2 text-center">${item.braco}</td>
+                <td class="px-4 py-2 text-center">${item.rodada}</td>
+                <td class="px-4 py-2">${item.produto}</td>
+                <td class="px-4 py-2">${item.cor || '-'}</td>
+                <td class="px-4 py-2 text-right font-mono">${(item.quantidade || 0).toLocaleString('pt-BR')}</td>
+            </tr>
+        `).join('');
+
+        // 6. Build the full HTML for the second table
+        const itensTableHtml = `
+            <div class="mt-8">
+                <div class="flex justify-between items-center mb-4">
+                    <h3 class="text-xl font-semibold text-accent">Itens Finalizados em ${data}</h3>
+                    <button id="export-projecao-itens-btn" class="bg-success hover:bg-success-dark text-white font-bold py-1 px-3 rounded-lg flex items-center text-sm">
+                        <i class="fas fa-file-excel mr-2"></i>
+                        Exportar para Excel
+                    </button>
+                </div>
+                <div class="overflow-x-auto max-h-96">
+                    <table class="min-w-full text-sm text-left text-main">
+                        <thead class="text-xs text-main uppercase bg-primary-light sticky top-0">
+                            <tr>
+                                <th class="px-4 py-3 text-center">Braço</th>
+                                <th class="px-4 py-3 text-center">Rodada</th>
+                                <th class="px-4 py-3">Produto</th>
+                                <th class="px-4 py-3">Cor</th>
+                                <th class="px-4 py-3 text-right">Quantidade</th>
+                            </tr>
+                        </thead>
+                        <tbody>
+                            ${itensTableBodyHtml}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        `;
+
         const fullTableHtml = `
             <div class="flex justify-between items-center mb-4">
                 <h3 class="text-xl font-semibold text-accent">Pedidos Finalizados em ${data}</h3>
@@ -380,6 +434,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     </tbody>
                 </table>
             </div>
+            ${itensTableHtml}
         `;
 
         container.innerHTML = fullTableHtml;
@@ -387,6 +442,10 @@ document.addEventListener("DOMContentLoaded", () => {
 
         document.getElementById('export-projecao-detalhes-btn').addEventListener('click', () => {
             exportProjecaoDetalhesToExcel(data, sortedPedidos);
+        });
+
+        document.getElementById('export-projecao-itens-btn').addEventListener('click', () => {
+            exportProjecaoItensToExcel(data, sortedItens);
         });
 
         container.scrollIntoView({ behavior: 'smooth', block: 'center' });
@@ -434,6 +493,29 @@ document.addEventListener("DOMContentLoaded", () => {
         XLSX.utils.book_append_sheet(workbook, worksheet, 'Detalhes Projeção');
 
         const filename = `projecao_detalhes_${data.replace(/\//g, '-')}.xlsx`;
+        XLSX.writeFile(workbook, filename);
+    }
+
+    function exportProjecaoItensToExcel(data, sortedItens) {
+        const dataToExport = sortedItens.map(item => ({
+            'Braço': item.braco,
+            'Rodada': item.rodada,
+            'Produto': item.produto,
+            'Cor': item.cor || '-',
+            'Quantidade': item.quantidade || 0
+        }));
+
+        if (dataToExport.length === 0) {
+            alert('Não há itens para exportar.');
+            return;
+        }
+
+        const worksheet = XLSX.utils.json_to_sheet(dataToExport);
+        const workbook = XLSX.utils.book_new();
+        XLSX.utils.book_append_sheet(workbook, worksheet, 'Itens Finalizados');
+
+        // Generate a dynamic filename
+        const filename = `projecao_itens_${data.replace(/\//g, '-')}.xlsx`;
         XLSX.writeFile(workbook, filename);
     }
 });
