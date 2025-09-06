@@ -2,6 +2,11 @@ document.addEventListener("DOMContentLoaded", () => {
     // Global variables
     let dadosOriginais = null;
 
+    // Pagination state for "Pedidos Não Atendidos" table
+    let pedidosNaoAtendidosData = [];
+    let currentPagePedidos = 1;
+    const itemsPerPagePedidos = 5; // 5 items per page
+
     // Initialize the application
     initializeApp();
 
@@ -15,6 +20,36 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
         // Reload button
         document.getElementById('reload-data-btn').addEventListener('click', loadAttentionPointsData);
+        // Pagination listeners
+        document.getElementById('pedidos-prev-page').addEventListener('click', () => {
+            if (currentPagePedidos > 1) {
+                currentPagePedidos--;
+                renderPedidosNaoAtendidosPage();
+            }
+        });
+        document.getElementById('pedidos-next-page').addEventListener('click', () => {
+            const totalPages = Math.ceil(pedidosNaoAtendidosData.length / itemsPerPagePedidos);
+            if (currentPagePedidos < totalPages) {
+                currentPagePedidos++;
+                renderPedidosNaoAtendidosPage();
+            }
+        });
+
+        // Event delegation for expandable rows
+        const pedidosTableBody = document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody');
+        pedidosTableBody.addEventListener('click', (e) => {
+            const mainRow = e.target.closest('.main-row');
+            if (mainRow) {
+                const targetId = mainRow.dataset.targetId;
+                const detailRow = document.getElementById(targetId);
+                const icon = mainRow.querySelector('i.fas');
+
+                detailRow.classList.toggle('hidden');
+                mainRow.classList.toggle('bg-gray-700');
+                icon.classList.toggle('fa-chevron-down');
+                icon.classList.toggle('fa-chevron-up');
+            }
+        });
     }
 
     function toggleSidebar() {
@@ -47,6 +82,7 @@ document.addEventListener("DOMContentLoaded", () => {
             document.getElementById('ociosos-table').querySelector('tbody').innerHTML = errorMessage;
             document.getElementById('necessidade-table').querySelector('tbody').innerHTML = errorMessage;
             document.getElementById('estoque-table').querySelector('tbody').innerHTML = errorMessage;
+            document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody').innerHTML = errorMessage;
             document.getElementById('sugestoes-otimizacao-container').innerHTML = '<p class="text-secondary text-center">Não foi possível carregar os dados.</p>';
         }
         hideLoading();
@@ -72,6 +108,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function renderAttentionPoints(data) {
         fillAttentionTables(data);
         generateOptimizationSuggestions(data);
+        fillPedidosNaoAtendidosTable(data);
     }
 
     function fillAttentionTables(data) {
@@ -246,5 +283,134 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function hideLoading() {
         document.getElementById('loading-layer').classList.add('hidden');
+    }
+
+    async function fillPedidosNaoAtendidosTable(data) {
+        const tableBody = document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody');
+        const paginationControls = document.getElementById('pedidos-nao-atendidos-pagination');
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Carregando detalhes dos pedidos...</td></tr>';
+        paginationControls.classList.add('hidden'); // Hide pagination while loading
+
+        const stockOrderIds = ["9999997", "9999998", "9999999"];
+        const necessidades = (data.necessidade_sem_moldes_data || [])
+            .filter(item => item["Qtd. Moldes Cadastrados"] > 0 && !stockOrderIds.includes(String(item.Pedido)));
+
+        if (necessidades.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Nenhum pedido com necessidade não atendida encontrado.</td></tr>';
+            pedidosNaoAtendidosData = [];
+            paginationControls.classList.add('hidden');
+            return;
+        }
+
+        const pedidosAgrupados = necessidades.reduce((acc, necessidade) => {
+            const pedidoId = String(parseInt(necessidade.Pedido)); // Normalize pedido ID
+            if (!acc[pedidoId]) {
+                acc[pedidoId] = { itens: [], detalhes: null };
+            }
+            acc[pedidoId].itens.push(necessidade);
+            return acc;
+        }, {});
+
+        // Fetch details for all unique orders in parallel
+        const promises = Object.keys(pedidosAgrupados).map(async (pedidoId) => {
+            try {
+                const response = await fetch(`/api/gantt/detalhes_pedido/${pedidoId}`);
+                if (response.ok) {
+                    pedidosAgrupados[pedidoId].detalhes = await response.json();
+                }
+            } catch (error) {
+                console.error(`Erro ao buscar detalhes para o pedido ${pedidoId}:`, error);
+            }
+        });
+
+        await Promise.all(promises);
+
+        // Group data by order for expandable rows, and sort by order value
+        pedidosNaoAtendidosData = Object.entries(pedidosAgrupados)
+            .filter(([, info]) => info.detalhes) // Only include orders for which we got details
+            .map(([pedidoId, info]) => ({
+                pedidoId: pedidoId,
+                cliente: info.detalhes.cliente,
+                valorPedido: info.detalhes.valor,
+                itens: info.itens.sort((a, b) => (a.Produto || a.Nome).localeCompare(b.Produto || b.Nome)) // Sort items alphabetically
+            }))
+            .sort((a, b) => b.valorPedido - a.valorPedido);
+
+
+        if (pedidosNaoAtendidosData.length === 0) {
+            tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Não foi possível carregar os detalhes dos pedidos.</td></tr>';
+            paginationControls.classList.add('hidden');
+            return;
+        }
+
+        // Render the first page
+        currentPagePedidos = 1;
+        renderPedidosNaoAtendidosPage();
+    }
+
+    function renderPedidosNaoAtendidosPage() {
+        const tableBody = document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody');
+        const paginationControls = document.getElementById('pedidos-nao-atendidos-pagination');
+        const pageInfo = document.getElementById('pedidos-page-info');
+        const prevButton = document.getElementById('pedidos-prev-page');
+        const nextButton = document.getElementById('pedidos-next-page');
+
+        tableBody.innerHTML = '';
+
+        const totalPages = Math.ceil(pedidosNaoAtendidosData.length / itemsPerPagePedidos);
+        const start = (currentPagePedidos - 1) * itemsPerPagePedidos;
+        const end = start + itemsPerPagePedidos;
+        const pageData = pedidosNaoAtendidosData.slice(start, end);
+
+        pageData.forEach(order => {
+            const detailRowId = `details-for-pedido-${order.pedidoId}`;
+
+            const mainRowHtml = `
+                <tr class="main-row border-b border-gray-700 hover:bg-gray-700 cursor-pointer" data-target-id="${detailRowId}">
+                    <td class="px-4 py-3 text-center text-secondary"><i class="fas fa-chevron-down transition-transform"></i></td>
+                    <td class="px-4 py-3 font-semibold">${order.pedidoId}</td>
+                    <td class="px-4 py-3">${order.cliente}</td>
+                    <td class="px-4 py-3 text-right font-mono">${order.valorPedido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                </tr>
+            `;
+
+            const detailRowHtml = `
+                <tr id="${detailRowId}" class="detail-row hidden">
+                    <td colspan="4" class="p-0 detail-row-cell">
+                        <div class="p-4">
+                            <table class="min-w-full text-xs">
+                                <thead class="text-gray-400">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Produto</th>
+                                        <th class="px-3 py-2 text-left">Cor</th>
+                                        <th class="px-3 py-2 text-right">Qtd. Faltante</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${order.itens.map(item => `
+                                        <tr class="border-t border-gray-700">
+                                            <td class="px-3 py-2">${item.Produto || item.Nome}</td>
+                                            <td class="px-3 py-2">${item.Cor || '-'}</td>
+                                            <td class="px-3 py-2 text-right font-mono">${item.Quantidade.toLocaleString('pt-BR')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tableBody.innerHTML += mainRowHtml + detailRowHtml;
+        });
+
+        // Update pagination controls
+        if (totalPages > 1) {
+            paginationControls.classList.remove('hidden');
+            pageInfo.textContent = `Página ${currentPagePedidos} de ${totalPages}`;
+            prevButton.disabled = currentPagePedidos === 1;
+            nextButton.disabled = currentPagePedidos === totalPages;
+        } else {
+            paginationControls.classList.add('hidden');
+        }
     }
 });

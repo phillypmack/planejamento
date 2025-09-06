@@ -1192,3 +1192,21 @@ def obter_planejamento_por_id(programacao_id):
             
     except Exception as e:
         return jsonify({"error": f"Erro ao obter planejamento: {str(e)}"}), 500
+
+@gantt_bp.route("/detalhes_pedido/<int:pedido_id>", methods=["GET"])
+def get_detalhes_pedido(pedido_id):
+    """
+    Busca detalhes adicionais de um pedido, como cliente e valor.
+    """
+    try:
+        razao_social = get_razao_social(pedido_id)
+        valor_pedido = get_valor_pedido(pedido_id)
+        
+        return jsonify({
+            "pedido": pedido_id,
+            "cliente": razao_social,
+            "valor": valor_pedido
+        }), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao buscar detalhes do pedido {pedido_id}: {str(e)}"}), 500
