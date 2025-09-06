@@ -996,51 +996,69 @@ def projecao_finalizacao_pedidos():
 
         conclusoes_pedidos = calcular_datas_conclusao(programacao_data_filtrada)
 
+        # Inicializa contadores e dicionários
         contagem_por_dia = Counter()
         valor_por_dia = Counter()
+        itens_planejados_por_dia = Counter()
         detalhes_por_dia = {}
         stock_order_ids = ["9999997", "9999998", "9999999"]
 
-        # Calcula a quantidade de itens planejados por dia (nova lógica)
-        itens_planejados_por_dia = Counter()
-        for item in programacao_data_filtrada:
-            try:
-                data_prevista_dt = datetime.strptime(item["Data Prevista"], "%d/%m/%Y")
-                itens_planejados_por_dia[data_prevista_dt] += item.get("Quantidade Programada", 0)
-            except (ValueError, TypeError, KeyError) as e:
-                print(f"Aviso: Ignorando item para projeção de itens planejados devido a dados inválidos: {e}")
-                continue
+        # Cache para detalhes do pedido para evitar chamadas repetidas ao DB
+        pedido_details_cache = {}
 
-        # Calcula métricas de finalização de pedidos (lógica existente)
+        # Primeiro, calcula os totais para os gráficos (quantidade de pedidos e valor)
         for pedido, info in conclusoes_pedidos.items():
             try:
                 data_conclusao_dt = datetime.strptime(info["data_conclusao"], "%d/%m/%Y")
-                data_conclusao_str = data_conclusao_dt.strftime("%d/%m/%Y")
-
                 contagem_por_dia[data_conclusao_dt] += 1
                 
-                valor_pedido = 0.0
-                cliente = "Estoque"
                 pedido_int_str = str(int(float(pedido)))
-
                 if pedido_int_str not in stock_order_ids:
                     valor_pedido = get_valor_pedido(pedido)
-                    cliente = get_razao_social(int(float(pedido)))
-                
-                valor_por_dia[data_conclusao_dt] += valor_pedido
+                    valor_por_dia[data_conclusao_dt] += valor_pedido
+            except (ValueError, TypeError) as e:
+                print(f"Aviso: Ignorando pedido '{pedido}' para contagem de projeção devido a dados inválidos: {e}")
+                continue
 
-                # Adiciona detalhes para o dia
+        # Segundo, coleta os detalhes de cada item para a tabela expansível e calcula itens por dia
+        for item in programacao_data_filtrada:
+            try:
+                # Calcula itens por dia
+                data_prevista_dt = datetime.strptime(item["Data Prevista"], "%d/%m/%Y")
+                itens_planejados_por_dia[data_prevista_dt] += item.get("Quantidade Programada", 0)
+
+                # Coleta detalhes para a tabela
+                pedido = item.get("Pedido")
+                if not pedido or pedido not in conclusoes_pedidos:
+                    continue
+
+                data_conclusao_str = conclusoes_pedidos[pedido]["data_conclusao"]
+                
                 if data_conclusao_str not in detalhes_por_dia:
                     detalhes_por_dia[data_conclusao_str] = []
-                
+
+                pedido_int_str = str(int(float(pedido)))
+
+                # Usa o cache para buscar cliente e valor
+                if pedido_int_str not in pedido_details_cache:
+                    if pedido_int_str not in stock_order_ids:
+                        pedido_details_cache[pedido_int_str] = {"cliente": get_razao_social(int(float(pedido))), "valor": get_valor_pedido(pedido)}
+                    else:
+                        pedido_details_cache[pedido_int_str] = {"cliente": "Estoque", "valor": 0.0}
+                details = pedido_details_cache[pedido_int_str]
+
                 detalhes_por_dia[data_conclusao_str].append({
                     "pedido": pedido_int_str,
-                    "cliente": cliente,
-                    "produto": info["produto"],
-                    "valor": valor_pedido
+                    "cliente": details["cliente"],
+                    "valorPedido": details["valor"],
+                    "produto": item.get("Produto"),
+                    "cor": item.get("Cor"),
+                    "quantidade": item.get("Quantidade Programada"),
+                    "rodada": item.get("Número da Rodada"),
+                    "braco": item.get("Braço")
                 })
-            except (ValueError, TypeError) as e:
-                print(f"Aviso: Ignorando pedido '{pedido}' devido a dados inválidos: {e}")
+            except (ValueError, TypeError, KeyError) as e:
+                print(f"Aviso: Ignorando item para detalhes de projeção devido a dados inválidos: {e}")
                 continue
 
         # Unifica as datas de todos os contadores

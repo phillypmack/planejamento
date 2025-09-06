@@ -20,6 +20,22 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Projeção
         document.getElementById('load-latest-for-projecao-btn').addEventListener('click', handleLoadLatestForProjecao);
+
+        // Event delegation for expandable rows in projection details
+        const projecaoTableContainer = document.getElementById('projecao-detalhes-container');
+        projecaoTableContainer.addEventListener('click', (e) => {
+            const mainRow = e.target.closest('.main-row-projecao');
+            if (mainRow) {
+                const targetId = mainRow.dataset.targetId;
+                const detailRow = document.getElementById(targetId);
+                const icon = mainRow.querySelector('i.fas');
+
+                detailRow.classList.toggle('hidden');
+                mainRow.classList.toggle('bg-gray-800'); // Highlight class
+                icon.classList.toggle('fa-chevron-down');
+                icon.classList.toggle('fa-chevron-up');
+            }
+        });
     }
 
     function toggleSidebar() {
@@ -264,35 +280,91 @@ document.addEventListener("DOMContentLoaded", () => {
         const container = document.getElementById('projecao-detalhes-container');
         container.innerHTML = '';
 
-        detalhes.sort((a, b) => b.valor - a.valor);
+        // 1. Group items by pedido
+        const pedidosAgrupados = detalhes.reduce((acc, item) => {
+            const pedidoId = item.pedido;
+            if (!acc[pedidoId]) {
+                acc[pedidoId] = {
+                    cliente: item.cliente,
+                    valorPedido: item.valorPedido,
+                    itens: []
+                };
+            }
+            acc[pedidoId].itens.push(item);
+            return acc;
+        }, {});
 
-        const tableHtml = `
+        // 2. Convert to array and sort by order value
+        const sortedPedidos = Object.entries(pedidosAgrupados)
+            .map(([pedidoId, data]) => ({ pedidoId, ...data }))
+            .sort((a, b) => b.valorPedido - a.valorPedido);
+
+        // 3. Build HTML for each expandable row
+        let tableBodyHtml = '';
+        sortedPedidos.forEach(order => {
+            const detailRowId = `details-projecao-for-pedido-${order.pedidoId}`;
+            const mainRowHtml = `
+                <tr class="main-row-projecao border-b border-gray-700 hover:bg-gray-800 cursor-pointer" data-target-id="${detailRowId}">
+                    <td class="px-4 py-3 text-center text-secondary"><i class="fas fa-chevron-down transition-transform"></i></td>
+                    <td class="px-4 py-3 font-semibold">${order.pedidoId}</td>
+                    <td class="px-4 py-3">${order.cliente}</td>
+                    <td class="px-4 py-3 text-right font-mono">${order.valorPedido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                </tr>
+            `;
+
+            const detailRowHtml = `
+                <tr id="${detailRowId}" class="detail-row hidden">
+                    <td colspan="4" class="detail-row-cell-projecao">
+                        <div class="p-4">
+                            <table class="min-w-full text-xs">
+                                <thead class="text-gray-400">
+                                    <tr>
+                                        <th class="px-3 py-2 text-left">Molde (Produto)</th>
+                                        <th class="px-3 py-2 text-left">Cor</th>
+                                        <th class="px-3 py-2 text-right">Braço</th>
+                                        <th class="px-3 py-2 text-right">Rodada</th>
+                                        <th class="px-3 py-2 text-right">Quantidade</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    ${order.itens.map(item => `
+                                        <tr class="border-t border-gray-700">
+                                            <td class="px-3 py-2">${item.produto}</td>
+                                            <td class="px-3 py-2">${item.cor || '-'}</td>
+                                            <td class="px-3 py-2 text-right font-mono">${item.braco || '-'}</td>
+                                            <td class="px-3 py-2 text-right font-mono">${item.rodada}</td>
+                                            <td class="px-3 py-2 text-right font-mono">${(item.quantidade || 0).toLocaleString('pt-BR')}</td>
+                                        </tr>
+                                    `).join('')}
+                                </tbody>
+                            </table>
+                        </div>
+                    </td>
+                </tr>
+            `;
+            tableBodyHtml += mainRowHtml + detailRowHtml;
+        });
+
+        const fullTableHtml = `
             <h3 class="text-xl font-semibold text-accent mb-4">Pedidos Finalizados em ${data}</h3>
             <div class="overflow-x-auto max-h-96">
                 <table class="min-w-full text-sm text-left text-main">
                     <thead class="text-xs text-main uppercase bg-primary-light sticky top-0">
                         <tr>
+                            <th class="px-4 py-3 w-12"></th>
                             <th class="px-4 py-3">Pedido</th>
                             <th class="px-4 py-3">Cliente</th>
-                            <th class="px-4 py-3">Produto</th>
                             <th class="px-4 py-3 text-right">Valor (R$)</th>
                         </tr>
                     </thead>
                     <tbody>
-                        ${detalhes.map(item => `
-                            <tr class="border-b border-gray-700 hover:bg-gray-800">
-                                <td class="px-4 py-2">${item.pedido}</td>
-                                <td class="px-4 py-2">${item.cliente}</td>
-                                <td class="px-4 py-2">${item.produto}</td>
-                                <td class="px-4 py-2 text-right font-mono">${new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(item.valor)}</td>
-                            </tr>
-                        `).join('')}
+                        ${tableBodyHtml}
                     </tbody>
                 </table>
             </div>
         `;
 
-        container.innerHTML = tableHtml;
+        container.innerHTML = fullTableHtml;
         container.classList.remove('hidden');
         container.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }
