@@ -296,22 +296,20 @@ def gerar_programacao_route():
 
         produtos_sem_molde_df = faltas_ordenadas[faltas_ordenadas["Quantidade que Falta Programar"] > 0]
         for _, produto_faltante in produtos_sem_molde_df.iterrows():
-            # CORREÇÃO: A lógica anterior era muito restritiva. Agora, qualquer demanda não atendida é considerada uma "necessidade".
-            # O frontend já filtra por "Qtd. Moldes Cadastrados > 0" para as sugestões.
-            qtd_moldes_cadastrados = 0
-            if cadastro_moldes_df is not None:
-                cadastro_filtro = cadastro_moldes_df[cadastro_moldes_df["DESCRPROD"] == produto_faltante["DESCRGRUPOPROD"]]
-                if not cadastro_filtro.empty:
-                    if "Qtd. Moldes" in cadastro_filtro.columns:
-                        qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["Qtd. Moldes"], errors='coerce').fillna(0).astype(int).sum()
-                    elif "QTDMOL" in cadastro_filtro.columns:
-                        qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["QTDMOL"], errors='coerce').fillna(0).astype(int).sum()
-            necessidade_sem_moldes_list.append({
-                "Nome": produto_faltante["DESCRGRUPOPROD"],
-                "Quantidade": produto_faltante["Quantidade que Falta Programar"],
-                "Qtd. Moldes Cadastrados": qtd_moldes_cadastrados,
-                "Pedido": produto_faltante["NUNOTA"]  # Adiciona o número do pedido, que estava faltando.
-            })
+            if produto_faltante["CODGRUPOPROD"] not in setup_df["CODGRUPOPROD"].values:
+                qtd_moldes_cadastrados = 0
+                if cadastro_moldes_df is not None:
+                    cadastro_filtro = cadastro_moldes_df[cadastro_moldes_df["DESCRPROD"] == produto_faltante["DESCRGRUPOPROD"]]
+                    if not cadastro_filtro.empty:
+                        if "Qtd. Moldes" in cadastro_filtro.columns:
+                            qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["Qtd. Moldes"], errors='coerce').fillna(0).astype(int).sum()
+                        elif "QTDMOL" in cadastro_filtro.columns:
+                            qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["QTDMOL"], errors='coerce').fillna(0).astype(int).sum()
+                necessidade_sem_moldes_list.append({
+                    "Nome": produto_faltante["DESCRGRUPOPROD"],
+                    "Quantidade": produto_faltante["Quantidade que Falta Programar"],
+                    "Qtd. Moldes Cadastrados": qtd_moldes_cadastrados
+                })
         
         moldes_ociosos_list.sort(key=lambda x: (isinstance(x["Rodada Ociosa"], str), x["Rodada Ociosa"], x["Braço"]))
 
