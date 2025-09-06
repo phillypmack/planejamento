@@ -208,7 +208,9 @@ document.addEventListener("DOMContentLoaded", () => {
                 dias_programacao: parseInt(document.getElementById('dias-programacao').value),
                 modo_sequenciamento: 'Otimizado', // Hardcoded as requested
                 data_inicio: document.getElementById('data-inicio-planejamento').value,
-                priorizacao_pedidos: document.getElementById('priorizacao-pedidos').value.trim()
+                priorizacao_pedidos: document.getElementById('priorizacao-pedidos').value.trim(),
+                incluir_sabados: document.getElementById('incluir-sabados').checked,
+                incluir_domingos: document.getElementById('incluir-domingos').checked
             };
 
             // Generate planning

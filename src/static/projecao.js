@@ -58,23 +58,6 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    async function fetchAndSetLatestPlanningData() {
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
-            }
-            dadosOriginais = result.ultimo_planejamento;
-            return true;
-        } catch (error) {
-            alert(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null;
-            return false;
-        }
-    }
-
     function showLoading() {
         document.getElementById('loading-layer').classList.remove('hidden');
     }
@@ -85,15 +68,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function handleLoadLatestForProjecao() {
         showLoading();
-        const success = await fetchAndSetLatestPlanningData();
-        if (success) {
+        try {
+            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
+            const result = await response.json();
+
+            if (!response.ok) {
+                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
+            }
+            dadosOriginais = result.ultimo_planejamento;
             await loadProjecaoChart();
+        } catch (error) {
+            alert(`Erro ao buscar último planejamento: ${error.message}`);
+            dadosOriginais = null;
+            loadProjecaoChart(); // Chama para limpar os gráficos e mostrar a mensagem de erro
+        } finally {
+            hideLoading();
         }
-        hideLoading();
     }
 
     async function loadProjecaoChart() {
-        if (!dadosOriginais || !dadosOriginais._id) {
+        const programacaoId = dadosOriginais ? dadosOriginais._id : null;
+
+        if (!programacaoId) {
             const container = document.getElementById('projecao-chart-container');
             const valorContainer = document.getElementById('projecao-valor-chart-container');
             const itensContainer = document.getElementById('projecao-itens-chart-container');
@@ -112,8 +108,21 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const programacaoId = dadosOriginais._id;
+        const cacheKey = `projecaoData_${programacaoId}`;
+        const cachedData = sessionStorage.getItem(cacheKey);
 
+        if (cachedData) {
+            console.log("Carregando dados de projeção do cache da sessão.");
+            const result = JSON.parse(cachedData);
+            projecaoDetalhes = result.detalhes_por_dia || {};
+            createProjecaoQuantidadeChart(result);
+            createProjecaoItensChart(result);
+            createProjecaoValorChart(result);
+            return; // Finaliza a execução após carregar do cache
+        }
+
+
+        console.log("Buscando dados de projeção do servidor (não encontrado no cache).");
         try {
             const response = await fetch('/api/gantt/projecao_finalizacao_pedidos', {
                 method: 'POST',
@@ -126,6 +135,9 @@ document.addEventListener("DOMContentLoaded", () => {
             if (!response.ok) {
                 throw new Error(result.error || 'Erro ao carregar dados da projeção');
             }
+
+            // Salva os dados no cache da sessão para uso futuro
+            sessionStorage.setItem(cacheKey, JSON.stringify(result));
 
             projecaoDetalhes = result.detalhes_por_dia || {};
             createProjecaoQuantidadeChart(result);

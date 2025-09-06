@@ -64,6 +64,42 @@ def carregar_cache(arquivo):
             return pickle.load(f)
     return None
 
+def calcular_data_futura(data_inicio, dias_de_trabalho, incluir_sabado, incluir_domingo):
+    """
+    Calcula uma data futura, contando apenas os dias úteis definidos.
+    `dias_de_trabalho` é o número do dia de trabalho (ex: 1 para o primeiro dia, 2 para o segundo).
+    """
+    if dias_de_trabalho <= 0:
+        dias_de_trabalho = 1 # Garante que sempre calcule pelo menos o primeiro dia
+
+    data_atual = data_inicio
+    dias_trabalhados_contados = 0
+    
+    # Loop para encontrar o início do primeiro dia de trabalho, caso a data de início seja um fds não trabalhado
+    while True:
+        dia_da_semana = data_atual.weekday() # Monday is 0, Sunday is 6
+        is_sabado = (dia_da_semana == 5)
+        is_domingo = (dia_da_semana == 6)
+        if (is_sabado and not incluir_sabado) or (is_domingo and not incluir_domingo):
+            data_atual += timedelta(days=1)
+            continue
+        break # Encontrou um dia de trabalho
+
+    dias_trabalhados_contados = 1
+
+    # Loop para contar os dias de trabalho restantes
+    while dias_trabalhados_contados < dias_de_trabalho:
+        data_atual += timedelta(days=1)
+        dia_da_semana = data_atual.weekday()
+        is_sabado = (dia_da_semana == 5)
+        is_domingo = (dia_da_semana == 6)
+        
+        if (is_sabado and not incluir_sabado) or (is_domingo and not incluir_domingo):
+            continue # Pula o dia, mas não incrementa o contador
+        
+        dias_trabalhados_contados += 1
+        
+    return data_atual
 
 @programacao_bp.route("/upload_setup", methods=["POST"])
 def upload_setup():
@@ -163,8 +199,10 @@ def gerar_programacao_route():
         data_inicio_str = data.get("data_inicio") # Novo parâmetro para data de início
         priorizacao_pedidos_str = data.get("priorizacao_pedidos", "")
         modo_sequenciamento = data.get("modo_sequenciamento", "Otimizado")
-        logger.info(f"Parâmetros de execução: max_dias={max_dias}, braco_selecionado='{braco_selecionado}', data_inicio='{data_inicio_str}', priorizacao_pedidos='{priorizacao_pedidos_str}', modo_sequenciamento='{modo_sequenciamento}'")
-
+        incluir_sabados = data.get("incluir_sabados", False)
+        incluir_domingos = data.get("incluir_domingos", False)
+        logger.info(f"Parâmetros de execução: max_dias={max_dias}, braco_selecionado='{braco_selecionado}', data_inicio='{data_inicio_str}', priorizacao_pedidos='{priorizacao_pedidos_str}', modo_sequenciamento='{modo_sequenciamento}', sabados={incluir_sabados}, domingos={incluir_domingos}")
+        
         if braco_selecionado == "Todos":
             logger.info("Processando para todos os braços.")
             bracos_moldes = setup_df.copy()
@@ -241,7 +279,9 @@ def gerar_programacao_route():
                             if moldes_disponiveis <= 0: break
                             if index_falta not in faltas_ordenadas.index or faltas_ordenadas.loc[index_falta, "Quantidade que Falta Programar"] <= 0:
                                 continue
-
+                            
+                            dias_de_trabalho = math.ceil(rodada / qtd_capacidade_rodadas)
+                            data_prevista_calculada = calcular_data_futura(data_inicial, dias_de_trabalho, incluir_sabados, incluir_domingos)
                             falta_total_item = faltas_ordenadas.loc[index_falta, "Quantidade que Falta Programar"]
                             programado = min(falta_total_item, moldes_disponiveis)
                             
@@ -250,8 +290,8 @@ def gerar_programacao_route():
                                 faltas_ordenadas.loc[index_falta, "Quantidade que Falta Programar"] -= programado
                                 moldes_disponiveis -= programado
                                 rodada_atual.append({
-                                    "Número da Rodada": rodada, # noqa: E501
-                                    "Data Prevista": (data_inicial + timedelta(days=math.ceil((rodada - 1) / qtd_capacidade_rodadas))).strftime("%d/%m/%Y"),
+                                    "Número da Rodada": rodada,
+                                    "Data Prevista": data_prevista_calculada.strftime("%d/%m/%Y"),
                                     "Braço": molde["CODBRACO"],
                                     "Produto": faltas_ordenadas.loc[index_falta, "DESCRGRUPOPROD"],
                                     "Cor": faltas_ordenadas.loc[index_falta, "COR"],
@@ -268,7 +308,8 @@ def gerar_programacao_route():
             if not capacidade_por_braco_dict:
                 logger.error("Nenhuma capacidade de rodadas definida para os braços selecionados.")
                 return jsonify({"error": "Nenhuma capacidade de rodadas definida para os braços selecionados."}), 400
-
+            
+            data_limite = calcular_data_futura(data_inicial, max_dias, incluir_sabados, incluir_domingos)
             rodada_num = 1
             while faltas_ordenadas["Quantidade que Falta Programar"].sum() > 0:
                 logger.info(f"Iniciando rodada de otimização número: {rodada_num}. Faltas restantes: {faltas_ordenadas['Quantidade que Falta Programar'].sum()}")
@@ -291,9 +332,10 @@ def gerar_programacao_route():
                         cod_braco_molde = molde_info["CODBRACO"]
                         capacidade_braco = capacidade_por_braco_dict.get(cod_braco_molde, 1)
                         if capacidade_braco <= 0: capacidade_braco = 1
+                        
                         dia_calculado = math.ceil(rodada_num / capacidade_braco)
-
-                        if dia_calculado > max_dias: continue
+                        data_prevista_calculada_dt = calcular_data_futura(data_inicial, dia_calculado, incluir_sabados, incluir_domingos)
+                        if data_prevista_calculada_dt > data_limite: continue
 
                         qtd_total_moldes_molde = int(molde_info["QTDMOL"])
                         moldes_ja_alocados_nesse_braco = capacidade_alocada_por_rodada[rodada_num].get(cod_braco_molde, {}).get(grupo_produto_falta, 0)
@@ -313,7 +355,7 @@ def gerar_programacao_route():
                                 capacidade_alocada_por_rodada[rodada_num][cod_braco_molde][grupo_produto_falta] = 0
                             capacidade_alocada_por_rodada[rodada_num][cod_braco_molde][grupo_produto_falta] += programado
                             
-                            data_prevista_calculada = (data_inicial + timedelta(days=dia_calculado - 1)).strftime("%d/%m/%Y")
+                            data_prevista_calculada = data_prevista_calculada_dt.strftime("%d/%m/%Y")
                             
                             rodada_item = {
                                 "Número da Rodada": rodada_num,
