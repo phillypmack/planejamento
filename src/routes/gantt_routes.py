@@ -983,7 +983,18 @@ def projecao_finalizacao_pedidos():
         if not programacao_data:
             return jsonify({"labels": [], "data_quantidade": [], "data_valor": [], "detalhes_por_dia": {}}), 200
 
-        conclusoes_pedidos = calcular_datas_conclusao(programacao_data)
+        # Identifica pedidos com necessidade não atendida para excluí-los da projeção
+        necessidade_data = programacao.get("necessidade_sem_moldes_data", [])
+        # O campo 'Pedido' pode ser float, então convertemos para int e depois para string para uma comparação consistente
+        pedidos_com_necessidade_nao_atendida = {str(int(float(item['Pedido']))) for item in necessidade_data if 'Pedido' in item}
+
+        # Filtra a programação principal para remover os itens dos pedidos com necessidade não atendida
+        programacao_data_filtrada = [
+            item for item in programacao_data 
+            if str(int(float(item.get('Pedido', 0)))) not in pedidos_com_necessidade_nao_atendida
+        ]
+
+        conclusoes_pedidos = calcular_datas_conclusao(programacao_data_filtrada)
 
         contagem_por_dia = Counter()
         valor_por_dia = Counter()
@@ -992,7 +1003,7 @@ def projecao_finalizacao_pedidos():
 
         # Calcula a quantidade de itens planejados por dia (nova lógica)
         itens_planejados_por_dia = Counter()
-        for item in programacao_data:
+        for item in programacao_data_filtrada:
             try:
                 data_prevista_dt = datetime.strptime(item["Data Prevista"], "%d/%m/%Y")
                 itens_planejados_por_dia[data_prevista_dt] += item.get("Quantidade Programada", 0)
