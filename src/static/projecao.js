@@ -173,8 +173,12 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Erro ao carregar dados da projeção');
             }
 
-            // Salva os dados no cache da sessão para uso futuro
-            sessionStorage.setItem(cacheKey, JSON.stringify(result));
+            // Salva os dados no cache da sessão para uso futuro, se possível.
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify(result));
+            } catch (e) {
+                console.warn(`Não foi possível salvar os dados de projeção no cache (provavelmente devido ao tamanho): ${e.name}`);
+            }
 
             projecaoDetalhes = result.detalhes_por_dia || {};
             createProjecaoQuantidadeChart(result);

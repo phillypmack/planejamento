@@ -319,6 +319,38 @@ def get_valor_pedido(nunota):
         valor_nota = 0.0
     return valor_nota
 
+def get_valores_pedidos_lote(nunotas):
+    """
+    Busca os valores de múltiplas notas (VLRNOTA) no banco de dados Sankhya.
+    Retorna um dicionário com {nunota: valor}.
+    """
+    if not all([SANKHYA_USER, SANKHYA_PASSWORD, SANKHYA_DSN]):
+        print("Variáveis de ambiente Sankhya não configuradas. Retornando valores 0.")
+        return {n: 0.0 for n in nunotas}
+
+    if not nunotas:
+        return {}
+
+    valores = {n: 0.0 for n in nunotas}
+    try:
+        with oracledb.connect(user=SANKHYA_USER, password=SANKHYA_PASSWORD, dsn=SANKHYA_DSN) as connection:
+            with connection.cursor() as cursor:
+                nunotas_int = [int(float(n)) for n in nunotas]
+                bind_vars = [f":nunota_{i}" for i in range(len(nunotas_int))]
+                sql = f"""
+                    SELECT NUNOTA, VLRNOTA 
+                    FROM TGFCAB 
+                    WHERE NUNOTA IN ({','.join(bind_vars)})
+                """
+                params = {f"nunota_{i}": nunota for i, nunota in enumerate(nunotas_int)}
+                cursor.execute(sql, params)
+                for nunota, valor_nota in cursor:
+                    if valor_nota is not None:
+                        valores[str(nunota)] = float(valor_nota)
+    except Exception as e:
+        print(f"Erro ao buscar valores de pedidos em lote: {e}")
+    return valores
+
 def get_razao_social(nunota):
     """
     Busca a razão social do cliente no banco de dados Sankhya.
@@ -1043,8 +1075,24 @@ def projecao_finalizacao_pedidos():
         detalhes_por_dia = {}
         stock_order_ids = ["9999997", "9999998", "9999999"]
 
-        # Cache para detalhes do pedido para evitar chamadas repetidas ao DB
+        # --- Otimização: Buscar dados do Sankhya em lote ---
+        pedidos_a_consultar = [
+            str(int(float(p))) for p in conclusoes_pedidos.keys() 
+            if str(int(float(p))) not in stock_order_ids
+        ]
+        
+        valores_pedidos_lote = get_valores_pedidos_lote(pedidos_a_consultar) if pedidos_a_consultar else {}
+        razoes_sociais_lote = get_razoes_sociais_lote(pedidos_a_consultar) if pedidos_a_consultar else {}
+        
         pedido_details_cache = {}
+        for pedido_id in pedidos_a_consultar:
+            pedido_details_cache[pedido_id] = {
+                "cliente": razoes_sociais_lote.get(pedido_id, "Cliente não encontrado"),
+                "valor": valores_pedidos_lote.get(pedido_id, 0.0)
+            }
+        for pedido_id in stock_order_ids:
+             pedido_details_cache[pedido_id] = {"cliente": "Estoque", "valor": 0.0}
+        # --- Fim da Otimização ---
 
         # Primeiro, calcula os totais para os gráficos (quantidade de pedidos e valor)
         for pedido, info in conclusoes_pedidos.items():
@@ -1054,7 +1102,7 @@ def projecao_finalizacao_pedidos():
                 
                 pedido_int_str = str(int(float(pedido)))
                 if pedido_int_str not in stock_order_ids:
-                    valor_pedido = get_valor_pedido(pedido)
+                    valor_pedido = pedido_details_cache.get(pedido_int_str, {}).get("valor", 0.0)
                     valor_por_dia[data_conclusao_dt] += valor_pedido
             except (ValueError, TypeError) as e:
                 print(f"Aviso: Ignorando pedido '{pedido}' para contagem de projeção devido a dados inválidos: {e}")
@@ -1079,13 +1127,8 @@ def projecao_finalizacao_pedidos():
 
                 pedido_int_str = str(int(float(pedido)))
 
-                # Usa o cache para buscar cliente e valor
-                if pedido_int_str not in pedido_details_cache:
-                    if pedido_int_str not in stock_order_ids:
-                        pedido_details_cache[pedido_int_str] = {"cliente": get_razao_social(int(float(pedido))), "valor": get_valor_pedido(pedido)}
-                    else:
-                        pedido_details_cache[pedido_int_str] = {"cliente": "Estoque", "valor": 0.0}
-                details = pedido_details_cache[pedido_int_str]
+                # Usa o cache pré-populado
+                details = pedido_details_cache.get(pedido_int_str, {"cliente": "Estoque", "valor": 0.0})
 
                 detalhes_por_dia[data_conclusao_str].append({
                     "pedido": pedido_int_str,
