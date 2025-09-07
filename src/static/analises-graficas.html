@@ -4,7 +4,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Relatórios - Sistema MRP/PCP</title>
+    <title>Análises Gráficas - Sistema MRP/PCP</title>
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
@@ -328,12 +328,11 @@
                     <i class="fas fa-chart-line mr-3"></i>
                     <span>Análise Histórica</span>
                 </a>
-                <a href="analises-graficas.html" class="nav-item flex items-center p-3 rounded-lg"
-                    data-section="analises-graficas">
+                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="analises-graficas">
                     <i class="fas fa-chart-pie mr-3"></i>
                     <span>Análises Gráficas</span>
                 </a>
-                <a href="#" class="nav-item active flex items-center p-3 rounded-lg" data-section="relatorios">
+                <a href="relatorios.html" class="nav-item flex items-center p-3 rounded-lg" data-section="relatorios">
                     <i class="fas fa-file-alt mr-3"></i>
                     <span>Relatórios</span>
                 </a>
@@ -382,69 +381,67 @@
             <div class="loading-bar-progress"></div>
         </div>
 
-
-        <!-- Relatórios Section -->
-        <div id="relatorios-section" class="section p-8">
-            <div class="mb-8">
-                <h2 class="text-3xl font-bold text-accent mb-2">Relatórios</h2>
-                <p class="text-secondary">Gere relatórios consolidados e personalizados</p>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <div class="bg-gray-800 rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Relatório de Produção Detalhado</h3>
-                    <p class="text-gray-400 mb-4">Selecione uma programação do histórico para gerar um relatório
-                        completo em PDF com KPIs, tabelas e pontos de atenção.</p>
-
-                    <div class="mb-4">
-                        <label for="relatorio-programacao-select"
-                            class="block mb-2 text-sm font-medium text-main">Selecione a Programação:</label>
-                        <select id="relatorio-programacao-select"
-                            class="bg-primary-dark border border-gray-600 text-black text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2.5">
-                            <option>Carregando histórico...</option>
-                        </select>
-                    </div>
-
-                    <button id="gerar-pdf-btn"
-                        class="bg-accent hover:bg-accent-dark text-white px-4 py-2 rounded-lg w-full disabled:opacity-50 disabled:cursor-not-allowed"
-                        disabled>
-                        <i class="fas fa-file-pdf mr-2"></i>
-                        Gerar PDF
+        <!-- Análises Gráficas Section -->
+        <div id="analises-graficas-section" class="section p-8">
+            <div class="mb-8 flex justify-between items-center">
+                <div>
+                    <h2 class="text-3xl font-bold text-accent mb-2">Análises Gráficas</h2>
+                    <p class="text-secondary">Visualizações gráficas do último planejamento gerado.</p>
+                </div>
+                <div>
+                    <button id="reload-data-btn"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        <i class="fas fa-sync-alt mr-2"></i>
+                        Recarregar Dados
                     </button>
                 </div>
+            </div>
 
+            <!-- New Total Evolution Chart -->
+            <div class="bg-primary-light rounded-lg p-6 mb-8">
+                <h3 class="text-xl font-semibold text-accent mb-4">Evolução da Quantidade Total Programada por Data</h3>
+                <div id="grafico-evolucao-total-container" style="height: 400px;">
+                    <canvas id="graficoEvolucaoTotal"></canvas>
+                </div>
+            </div>
+
+            <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+                <!-- Gráfico de Quantidade por Produto -->
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Análise de Tendências</h3>
-                    <p class="text-secondary mb-4">Evolução de métricas ao longo do tempo (Em desenvolvimento)</p>
-                    <button class="bg-success hover:bg-success-dark text-white px-4 py-2 rounded-lg disabled:opacity-50"
-                        disabled>
-                        <i class="fas fa-chart-line mr-2"></i>
-                        Visualizar
-                    </button>
+                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de itens planejados</h3>
+                    <div id="grafico-produtos-container" style="height: 400px;">
+                        <canvas id="graficoProdutos"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Evolução por Data -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Evolução por tipo</h3>
+                    <div id="grafico-evolucao-container" style="height: 400px;">
+                        <canvas id="graficoEvolucao"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Moldes por Braço -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Moldes por Braço</h3>
+                    <div id="grafico-moldes-braco-container" style="height: 400px;">
+                        <canvas id="graficoMoldesPorBraco"></canvas>
+                    </div>
+                </div>
+
+                <!-- Gráfico de Distribuição por Braço -->
+                <div class="bg-primary-light rounded-lg p-6">
+                    <h3 class="text-xl font-semibold text-accent mb-4">Distribuição de Itens por Braço</h3>
+                    <div id="grafico-bracos-container" style="height: 400px;">
+                        <canvas id="graficoBracos"></canvas>
+                    </div>
                 </div>
             </div>
         </div>
-
     </div>
 
-    <!-- Modal para Carregar Simulação (Hidden) -->
-    <div id="load-simulation-modal"
-        class="fixed inset-0 bg-primary-dark bg-opacity-80 z-50 flex items-center justify-center hidden">
-        <div class="bg-primary-light rounded-lg shadow-xl p-6 w-full max-w-2xl max-h-[80vh] flex flex-col">
-            <div class="flex justify-between items-center border-b border-gray-700 pb-3 mb-4">
-                <h3 class="text-xl font-semibold text-accent">Carregar Simulação de Setup</h3>
-                <button id="close-simulation-modal-btn" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times text-2xl"></i>
-                </button>
-            </div>
-            <div id="simulation-list-container" class="overflow-y-auto space-y-3 pr-2">
-                <!-- A lista de simulações será populada aqui -->
-                <p class="text-secondary text-center py-8">Carregando simulações salvas...</p>
-            </div>
-        </div>
-    </div>
-
-    <script src="relatorios.js"></script>
+    <script src="analises-graficas.js"></script>
 </body>
 
 </html>
