@@ -582,10 +582,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function showLoading() {
-        document.getElementById('loading-layer').classList.remove('hidden');
+        document.getElementById('top-loading-bar').classList.remove('hidden');
     }
 
     function hideLoading() {
-        document.getElementById('loading-layer').classList.add('hidden');
+        document.getElementById('top-loading-bar').classList.add('hidden');
     }
 });

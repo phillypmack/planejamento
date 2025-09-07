@@ -205,6 +205,30 @@
             border: 2px dashed var(--color-accent);
             background-color: rgba(52, 152, 219, 0.1);
         }
+
+        /* Top Loading Bar */
+        #top-loading-bar {
+            background-color: rgba(46, 204, 113, 0.2);
+            /* Um fundo suave para a trilha da barra */
+            overflow: hidden;
+        }
+
+        .loading-bar-progress {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(to right, transparent, var(--color-success), transparent);
+            animation: loading-animation 1.5s linear infinite;
+        }
+
+        @keyframes loading-animation {
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(100%);
+            }
+        }
     </style>
 </head>
 
@@ -276,14 +300,9 @@
 
     <!-- Main Content -->
     <div id="main-content" class="relative ml-64 min-h-screen transition-all duration-300">
-        <!-- Loading Layer -->
-        <div id="loading-layer"
-            class="absolute inset-0 bg-primary-dark bg-opacity-90 z-50 flex items-center justify-center hidden">
-            <div class="text-center">
-                <div class="inline-block animate-spin rounded-full h-16 w-16 border-t-2 border-b-2 border-accent mb-4">
-                </div>
-                <p class="text-xl text-accent font-semibold">Processando...</p>
-            </div>
+        <!-- Top Loading Bar -->
+        <div id="top-loading-bar" class="sticky top-0 w-full h-2 z-50 hidden">
+            <div class="loading-bar-progress"></div>
         </div>
 
 
