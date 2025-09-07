@@ -347,6 +347,38 @@ def get_razao_social(nunota):
         razao_social = "Erro de conexão DB"
     return razao_social
 
+def get_razoes_sociais_lote(nunotas):
+    """
+    Busca as razões sociais de múltiplos clientes em uma única consulta no Sankhya.
+    """
+    if not all([SANKHYA_USER, SANKHYA_PASSWORD, SANKHYA_DSN]):
+        print("Variáveis de ambiente Sankhya não configuradas. Retornando clientes padrão.")
+        return {n: "Cliente (configurar .env)" for n in nunotas}
+
+    if not nunotas:
+        return {}
+
+    razoes = {n: "Cliente não encontrado" for n in nunotas}
+    try:
+        with oracledb.connect(user=SANKHYA_USER, password=SANKHYA_PASSWORD, dsn=SANKHYA_DSN) as connection:
+            with connection.cursor() as cursor:
+                # Usar uma lista de bind variables para segurança e performance
+                nunotas_int = [int(float(n)) for n in nunotas]
+                bind_vars = [f":nunota_{i}" for i in range(len(nunotas_int))]
+                sql = f"""
+                    SELECT CAB.NUNOTA, PAR.RAZAOSOCIAL 
+                    FROM TGFPAR PAR 
+                    JOIN TGFCAB CAB ON CAB.CODPARC = PAR.CODPARC 
+                    WHERE CAB.NUNOTA IN ({','.join(bind_vars)})
+                """
+                params = {f"nunota_{i}": nunota for i, nunota in enumerate(nunotas_int)}
+                cursor.execute(sql, params)
+                for nunota, razao_social in cursor:
+                    razoes[str(nunota)] = razao_social
+    except Exception as e:
+        print(f"Erro ao buscar razões sociais em lote: {e}")
+    return razoes
+
 def build_pdf_report(programacao_data, historico_atrasos):
     """
     Constrói um relatório detalhado em PDF a partir dos dados de uma programação.
@@ -638,7 +670,9 @@ def gantt_comparacao_atrasos():
     """
     try:
         # 1. Buscar as duas últimas programações
-        cursor = programacao_results_collection.find().sort("timestamp", DESCENDING).limit(2)
+        # Otimização: buscar apenas os campos necessários
+        projection = {"programacao_data": 1, "_id": 1, "timestamp": 1}
+        cursor = programacao_results_collection.find({}, projection).sort("timestamp", DESCENDING).limit(2)
         programacoes = list(cursor)
         
         if len(programacoes) < 2:
@@ -730,14 +764,20 @@ def gantt_comparacao_atrasos():
             # Ordenar por maior impacto
             itens_causadores.sort(key=lambda x: x['dias_atraso_item'], reverse=True)
 
-            # Buscar nome do cliente e adicionar dados para a tabela
-            nome_cliente = get_razao_social(pedido_int)
             table_data.append({
                 "pedido": pedido_int,
-                "cliente": nome_cliente,
+                "cliente": "Buscando...", # Placeholder
                 "dias_atraso": item["diferenca_dias"],
                 "itens_causadores": itens_causadores
             })
+
+        # Otimização: Buscar todos os nomes de clientes de uma vez
+        if table_data:
+            pedidos_ids = [str(item['pedido']) for item in table_data]
+            nomes_clientes = get_razoes_sociais_lote(pedidos_ids)
+            for item in table_data:
+                # O nunota pode ser float no banco, então convertemos para int e depois str
+                item['cliente'] = nomes_clientes.get(str(item['pedido']), "Cliente não encontrado")
 
         # Salvar histórico de atrasos no banco
         if table_data:
@@ -1239,3 +1279,51 @@ def get_detalhes_pedido(pedido_id):
 
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar detalhes do pedido {pedido_id}: {str(e)}"}), 500
+
+@gantt_bp.route("/dashboard_kpis", methods=["GET"])
+def get_dashboard_kpis():
+    """
+    Calcula e retorna apenas os KPIs para o dashboard, de forma otimizada.
+    """
+    try:
+        # Busca o último planejamento, mas sem os dados de programação detalhados para ser mais rápido
+        ultimo_planejamento = programacao_results_collection.find_one(
+            sort=[("timestamp", DESCENDING)]
+        )
+
+        if not ultimo_planejamento:
+            return jsonify({
+                "pedidos": 0, "itens_pedidos": 0, "itens_estoque": 0,
+                "criticos": 0, "ociosos": 0, "ocupacao": "0,0%"
+            }), 200
+
+        prog_data = ultimo_planejamento.get("programacao_data", [])
+        ociosos_data = ultimo_planejamento.get("moldes_ociosos_data", [])
+        necessidade_data = ultimo_planejamento.get("necessidade_sem_moldes_data", [])
+        dias_programacao = ultimo_planejamento.get("dias_programacao", 0)
+        stock_order_ids = ["9999997", "9999998", "9999999"]
+
+        kpis = {
+            "pedidos": len(set(p['Pedido'] for p in prog_data)) if prog_data else 0,
+            "itens_pedidos": sum(p['Quantidade Programada'] for p in prog_data if str(int(p['Pedido'])) not in stock_order_ids) if prog_data else 0,
+            "itens_estoque": sum(p['Quantidade Programada'] for p in prog_data if str(int(p['Pedido'])) in stock_order_ids) if prog_data else 0,
+            "criticos": len([item for item in necessidade_data if item.get("Qtd. Moldes Cadastrados", 0) > 0]) if necessidade_data else 0,
+            "ociosos": len(ociosos_data) if ociosos_data else 0,
+            "ocupacao": "0,0%"
+        }
+
+        if prog_data and ociosos_data and dias_programacao > 0:
+            moldes_usados = set(p['Produto'] for p in prog_data)
+            moldes_ociosos_set = set(m['Nome'] for m in ociosos_data)
+            total_moldes = len(moldes_usados.union(moldes_ociosos_set))
+            if total_moldes > 0:
+                total_dias_disponiveis = total_moldes * dias_programacao
+                dias_de_uso_efetivo = len(set(f"{p['Produto']}|{p['Data Prevista']}" for p in prog_data))
+                if total_dias_disponiveis > 0:
+                    taxa = (dias_de_uso_efetivo / total_dias_disponiveis) * 100
+                    kpis["ocupacao"] = f"{taxa:.1f}".replace('.', ',') + '%'
+
+        return jsonify(kpis), 200
+
+    except Exception as e:
+        return jsonify({"error": f"Erro ao calcular KPIs: {str(e)}"}), 500

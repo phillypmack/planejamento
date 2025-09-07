@@ -378,6 +378,34 @@
                     </button>
                 </div>
             </div>
+            <div class="bg-primary-light rounded-lg p-4">
+                <h4 class="font-semibold mb-3 text-lg text-purple-400">Pedidos com Necessidade Não Atendida</h4>
+                <div class="overflow-x-auto max-h-72">
+                    <table id="pedidos-nao-atendidos-table" class="min-w-full text-sm text-left text-main">
+                        <thead class="text-xs text-main uppercase bg-primary-dark">
+                            <tr>
+                                <th class="px-4 py-3 w-12"></th> <!-- For expand icon -->
+                                <th class="px-4 py-3">Pedido</th>
+                                <th class="px-4 py-3">Cliente</th>
+                                <th class="px-4 py-3 text-right">Valor do Pedido (R$)</th>
+                            </tr>
+                        </thead>
+                        <tbody></tbody>
+                    </table>
+                </div>
+                <div id="pedidos-nao-atendidos-pagination"
+                    class="flex justify-between items-center mt-4 text-sm text-secondary hidden">
+                    <button id="pedidos-prev-page"
+                        class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-left mr-1"></i> Anterior
+                    </button>
+                    <span id="pedidos-page-info"></span>
+                    <button id="pedidos-next-page"
+                        class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        Próximo <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
+                </div>
+            </div>
 
             <div class="space-y-6">
                 <div class="bg-primary-light rounded-lg p-4">
@@ -433,36 +461,22 @@
                         <!-- Suggestions will be injected here by JS -->
                     </div>
                 </div>
-                <div class="bg-primary-light rounded-lg p-4">
-                    <h4 class="font-semibold mb-3 text-lg text-purple-400">Pedidos com Necessidade Não Atendida</h4>
-                    <div class="overflow-x-auto max-h-72">
-                        <table id="pedidos-nao-atendidos-table" class="min-w-full text-sm text-left text-main">
-                            <thead class="text-xs text-main uppercase bg-primary-dark">
-                                <tr>
-                                    <th class="px-4 py-3 w-12"></th> <!-- For expand icon -->
-                                    <th class="px-4 py-3">Pedido</th>
-                                    <th class="px-4 py-3">Cliente</th>
-                                    <th class="px-4 py-3 text-right">Valor do Pedido (R$)</th>
-                                </tr>
-                            </thead>
-                            <tbody></tbody>
-                        </table>
-                    </div>
-                    <div id="pedidos-nao-atendidos-pagination"
-                        class="flex justify-between items-center mt-4 text-sm text-secondary hidden">
-                        <button id="pedidos-prev-page"
-                            class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                            <i class="fas fa-chevron-left mr-1"></i> Anterior
-                        </button>
-                        <span id="pedidos-page-info"></span>
-                        <button id="pedidos-next-page"
-                            class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
-                            Próximo <i class="fas fa-chevron-right ml-1"></i>
-                        </button>
-                    </div>
+
+                <div id="pedidos-nao-atendidos-pagination"
+                    class="flex justify-between items-center mt-4 text-sm text-secondary hidden">
+                    <button id="pedidos-prev-page"
+                        class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        <i class="fas fa-chevron-left mr-1"></i> Anterior
+                    </button>
+                    <span id="pedidos-page-info"></span>
+                    <button id="pedidos-next-page"
+                        class="bg-gray-700 hover:bg-gray-600 text-white font-bold py-1 px-3 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed">
+                        Próximo <i class="fas fa-chevron-right ml-1"></i>
+                    </button>
                 </div>
             </div>
         </div>
+    </div>
 
     </div>
 

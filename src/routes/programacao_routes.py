@@ -564,14 +564,34 @@ def salvar_programacao():
 def get_historico():
     logger.info("Rota /obter_historico chamada.")
     try:
-        # Find all documents and sort by timestamp descending
-        logger.info("Buscando histórico de programações no MongoDB (limite de 3).")
-        historico = list(programacao_results_collection.find().sort("timestamp", -1).limit(3))
-        
-        # Convert ObjectId to string and remove it for JSON serialization
+        # Projeção otimizada para retornar APENAS os campos necessários para a listagem do histórico.
+        # Isso torna a resposta da API extremamente leve e rápida.
+        projection = {
+            "_id": 1,
+            "timestamp": 1,
+            "tipo": 1,
+            "descricao": 1,
+            "braco_selecionado": 1
+        }
+
+        # Permite que o frontend especifique um limite (ex: ?limit=3 para o dashboard)
+        limit = request.args.get('limit', default=0, type=int)
+
+        query = programacao_results_collection.find({}, projection).sort("timestamp", DESCENDING)
+
+        if limit > 0:
+            logger.info(f"Buscando histórico de programações no MongoDB com projeção e limite de {limit}.")
+            query = query.limit(limit)
+        else:
+            # Se nenhum limite for passado, retorna todos os registros (útil para a página de Análise Histórica)
+            logger.info("Buscando histórico completo de programações no MongoDB com projeção.")
+
+        historico = list(query)
+
+        # Convert ObjectId to string for JSON serialization
         for item in historico:
             item['_id'] = str(item['_id'])
-            
+
         logger.info(f"Histórico encontrado com {len(historico)} registros.")
         return jsonify({"historico": historico}), 200
     except Exception as e:

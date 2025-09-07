@@ -11,7 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
-        handleLoadLatestForProjecao(); // Load data on page start
+        loadProjecaoData(); // Tenta carregar do cache ao iniciar
     }
 
     function setupEventListeners() {
@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
 
         // Projeção
-        document.getElementById('load-latest-for-projecao-btn').addEventListener('click', handleLoadLatestForProjecao);
+        document.getElementById('load-latest-for-projecao-btn').addEventListener('click', () => loadProjecaoData(true));
 
         // Event delegation for expandable rows in projection details
         const projecaoTableContainer = document.getElementById('projecao-detalhes-container');
@@ -66,8 +66,18 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('loading-layer').classList.add('hidden');
     }
 
-    async function handleLoadLatestForProjecao() {
-        showLoading();
+    async function fetchAndSetLatestPlanningData(forceReload = false) {
+        const cacheKey = 'projecaoMainCache';
+        if (!forceReload) {
+            const cachedData = sessionStorage.getItem(cacheKey);
+            if (cachedData) {
+                console.log("Carregando dados principais de projeção do cache da sessão.");
+                dadosOriginais = JSON.parse(cachedData);
+                return true;
+            }
+        }
+
+        console.log("Buscando dados principais de projeção do servidor.");
         try {
             const response = await fetch('/api/gantt/obter_ultimo_planejamento');
             const result = await response.json();
@@ -76,14 +86,41 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
             }
             dadosOriginais = result.ultimo_planejamento;
-            await loadProjecaoChart();
+
+            // Salva no cache para uso futuro na mesma sessão
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
+            } catch (e) {
+                console.warn("Não foi possível salvar os dados de projeção no cache: " + e.name);
+            }
+            return true;
         } catch (error) {
             alert(`Erro ao buscar último planejamento: ${error.message}`);
             dadosOriginais = null;
-            loadProjecaoChart(); // Chama para limpar os gráficos e mostrar a mensagem de erro
-        } finally {
-            hideLoading();
+            return false;
         }
+    }
+
+    async function loadProjecaoData(forceReload = false) {
+        showLoading();
+        if (forceReload) {
+            sessionStorage.removeItem('projecaoMainCache');
+            // Também é bom limpar o cache de detalhes, pois um novo planejamento terá um novo ID
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('projecaoData_')) {
+                    sessionStorage.removeItem(key);
+                }
+            });
+            console.log("Caches de projeção limpos para forçar recarregamento.");
+        }
+        const success = await fetchAndSetLatestPlanningData(forceReload);
+        if (success && dadosOriginais) {
+            await loadProjecaoChart();
+        } else if (!forceReload) {
+            // Se não for reload forçado e não houver sucesso (nem cache), limpa os gráficos.
+            loadProjecaoChart(); // Chama para limpar os gráficos e mostrar a mensagem de erro
+        }
+        hideLoading();
     }
 
     async function loadProjecaoChart() {

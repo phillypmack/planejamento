@@ -94,50 +94,75 @@ document.addEventListener("DOMContentLoaded", () => {
 
     // Carrega os KPIs buscando o último planejamento
     async function loadDashboardKPIs() {
+        const cacheKey = 'dashboardKPIsCache';
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            console.log("Carregando KPIs do cache da sessão.");
+            updateDashboardKPIs(JSON.parse(cachedData));
+            return;
+        }
+
+        console.log("Buscando KPIs do servidor (não encontrado no cache).");
         try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
+            const response = await fetch('/api/gantt/dashboard_kpis');
             const result = await response.json();
 
-            if (response.ok && result.ultimo_planejamento) {
-                updateDashboardKPIs(result.ultimo_planejamento);
+            if (response.ok) {
+                sessionStorage.setItem(cacheKey, JSON.stringify(result)); // Salva no cache
+                updateDashboardKPIs(result);
             } else {
-                // Se não houver histórico, zera os KPIs
-                updateDashboardKPIs({});
+                throw new Error(result.error || "Falha ao carregar KPIs");
             }
         } catch (error) {
             console.error('Erro ao carregar KPIs do dashboard:', error);
-            updateDashboardKPIs({}); // Zera em caso de erro
+            updateDashboardKPIs({ pedidos: 0, itens_pedidos: 0, itens_estoque: 0, criticos: 0, ociosos: 0, ocupacao: '-' });
         }
     }
 
     async function loadComparisonGantt() {
+        const cacheKey = 'comparisonGanttCache';
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            console.log("Carregando Gantt de comparação do cache da sessão.");
+            renderComparisonData(JSON.parse(cachedData));
+            return;
+        }
+
+        console.log("Buscando Gantt de comparação do servidor (não encontrado no cache).");
         try {
             const response = await fetch('/api/gantt/gantt_comparacao_atrasos');
             const result = await response.json();
 
-            const ganttContainer = document.getElementById('gantt-comparacao-atrasos');
-            const tableContainer = document.getElementById('tabela-comparacao-atrasos');
-
-            ganttContainer.innerHTML = ''; // Limpa a mensagem de "carregando"
-            tableContainer.innerHTML = ''; // Limpa a tabela
-            tableContainer.classList.add('hidden'); // Esconde por padrão
-
             if (response.ok) {
-                if (result.gantt_data && result.gantt_data.length > 0) {
-                    createComparisonGantt(result.gantt_data);
-                } else {
-                    ganttContainer.innerHTML = `<p class="text-gray-400">${result.message || 'Não há dados de atraso para exibir.'}</p>`;
-                }
-
-                if (result.table_data && result.table_data.length > 0) {
-                    createComparisonTable(result.table_data);
-                }
+                sessionStorage.setItem(cacheKey, JSON.stringify(result)); // Salva no cache
+                renderComparisonData(result);
             } else {
-                ganttContainer.innerHTML = `<p class="text-red-400">${result.error || 'Erro ao carregar dados de comparação.'}</p>`;
+                document.getElementById('gantt-comparacao-atrasos').innerHTML = `<p class="text-red-400">${result.error || 'Erro ao carregar dados de comparação.'}</p>`;
             }
         } catch (error) {
             console.error('Erro ao carregar Gantt de comparação:', error);
             document.getElementById('gantt-comparacao-atrasos').innerHTML = '<p class="text-red-400">Erro ao carregar análise de atrasos.</p>';
+        }
+    }
+
+    function renderComparisonData(result) {
+        const ganttContainer = document.getElementById('gantt-comparacao-atrasos');
+        const tableContainer = document.getElementById('tabela-comparacao-atrasos');
+
+        ganttContainer.innerHTML = ''; // Limpa a mensagem de "carregando"
+        tableContainer.innerHTML = ''; // Limpa a tabela
+        tableContainer.classList.add('hidden'); // Esconde por padrão
+
+        if (result.gantt_data && result.gantt_data.length > 0) {
+            createComparisonGantt(result.gantt_data);
+        } else {
+            ganttContainer.innerHTML = `<p class="text-gray-400">${result.message || 'Não há dados de atraso para exibir.'}</p>`;
+        }
+
+        if (result.table_data && result.table_data.length > 0) {
+            createComparisonTable(result.table_data);
         }
     }
 
@@ -222,39 +247,25 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function loadHistoricoRecente() {
+        const cacheKey = 'recentHistoryCache';
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            console.log("Carregando histórico recente do cache da sessão.");
+            renderHistoricoRecente(JSON.parse(cachedData).historico);
+            return;
+        }
+
+        console.log("Buscando histórico recente do servidor (não encontrado no cache).");
         try {
             const response = await fetch('/api/programacao/obter_historico');
             const result = await response.json();
 
-            const container = document.getElementById('historico-recente');
-            container.innerHTML = '';
-
-            if (response.ok && result.historico && result.historico.length > 0) {
-                const recent = result.historico.slice(0, 3);
-                recent.forEach(item => {
-                    const date = new Date(item.timestamp).toLocaleString('pt-BR');
-                    const isSimulation = item.tipo === 'Simulação de Setup';
-                    const description = item.descricao || (isSimulation ? 'Simulação de Setup' : `Braço: ${item.braco_selecionado || 'Todos'}`);
-
-                    const div = document.createElement('div');
-                    div.className = `flex justify-between items-center p-3 rounded-lg ${isSimulation ? 'bg-yellow-900 bg-opacity-30' : 'bg-gray-700'}`;
-                    div.innerHTML = `
-                        <div>
-                            <span class="text-gray-300">${date}</span>
-                            ${isSimulation
-                            ? `<span class="ml-2 text-xs font-semibold bg-yellow-500 text-black px-2 py-0.5 rounded-full">Simulação</span>`
-                            : ''
-                        }
-                            <p class="text-sm text-secondary">${description}</p>
-                        </div>
-                        <button class="text-accent hover:text-accent-dark" onclick="carregarProgramacaoHistorico('${item._id}')">
-                            Ver
-                        </button>
-                    `;
-                    container.appendChild(div);
-                });
+            if (response.ok && result.historico) {
+                sessionStorage.setItem(cacheKey, JSON.stringify(result)); // Salva no cache
+                renderHistoricoRecente(result.historico);
             } else {
-                container.innerHTML = '<p class="text-gray-400">Nenhum histórico encontrado</p>';
+                document.getElementById('historico-recente').innerHTML = '<p class="text-gray-400">Nenhum histórico encontrado</p>';
             }
         } catch (error) {
             console.error('Erro ao carregar histórico recente:', error);
@@ -262,52 +273,49 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function updateDashboardKPIs(data) {
-        const stockOrderIds = ["9999997", "9999998", "9999999"];
+    function renderHistoricoRecente(historico) {
+        const container = document.getElementById('historico-recente');
+        container.innerHTML = '';
 
-        // Card: Total de Pedidos
-        const pedidos = data.programacao_data ? new Set(data.programacao_data.map(item => item.Pedido)).size : 0;
-        document.getElementById('kpi-pedidos').textContent = pedidos.toLocaleString('pt-BR');
+        if (historico && historico.length > 0) {
+            const recent = historico.slice(0, 3);
+            recent.forEach(item => {
+                const date = new Date(item.timestamp).toLocaleString('pt-BR');
+                const isSimulation = item.tipo === 'Simulação de Setup';
+                const description = item.descricao || (isSimulation ? 'Simulação de Setup' : `Braço: ${item.braco_selecionado || 'Todos'}`);
 
-        // Card: Total de Itens para Pedidos (clientes)
-        const customerItems = data.programacao_data ? data.programacao_data
-            .filter(item => !stockOrderIds.includes(String(item.Pedido)))
-            .reduce((sum, item) => sum + item["Quantidade Programada"], 0) : 0;
-        document.getElementById('kpi-itens-pedidos').textContent = customerItems.toLocaleString('pt-BR');
-
-        // Card: Itens para Estoque
-        const stockItems = data.programacao_data ? data.programacao_data
-            .filter(item => stockOrderIds.includes(String(item.Pedido)))
-            .reduce((sum, item) => sum + item["Quantidade Programada"], 0) : 0;
-        document.getElementById('kpi-itens-estoque').textContent = stockItems.toLocaleString('pt-BR');
-
-        // Card: Produtos Sem Molde
-        const semMolde = data.necessidade_sem_moldes_data
-            ? data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0).length
-            : 0;
-        document.getElementById('kpi-criticos').textContent = semMolde.toLocaleString('pt-BR');
-
-        // Card: Moldes Ociosos
-        const ociosos = data.moldes_ociosos_data ? data.moldes_ociosos_data.length : 0;
-        document.getElementById('kpi-ociosos').textContent = ociosos.toLocaleString('pt-BR');
-
-        // Card: Taxa de Ocupação
-        let taxaOcupacao = '-';
-        if (data.programacao_data && data.moldes_ociosos_data && data.dias_programacao > 0) {
-            const moldesUsados = new Set(data.programacao_data.map(item => item.Produto));
-            const moldesOciosos = new Set(data.moldes_ociosos_data.map(item => item.Nome));
-            const totalMoldes = new Set([...moldesUsados, ...moldesOciosos]).size;
-
-            if (totalMoldes > 0) {
-                const totalDiasDisponiveis = totalMoldes * data.dias_programacao;
-                const diasDeUsoEfetivo = new Set(data.programacao_data.map(item => `${item.Produto}|${item['Data Prevista']}`)).size;
-
-                if (totalDiasDisponiveis > 0) {
-                    taxaOcupacao = ((diasDeUsoEfetivo / totalDiasDisponiveis) * 100).toFixed(1).replace('.', ',') + '%';
-                }
-            }
+                const div = document.createElement('div');
+                div.className = `flex justify-between items-center p-3 rounded-lg ${isSimulation ? 'bg-yellow-900 bg-opacity-30' : 'bg-gray-700'}`;
+                div.innerHTML = `
+                    <div>
+                        <span class="text-gray-300">${date}</span>
+                        ${isSimulation ? `<span class="ml-2 text-xs font-semibold bg-yellow-500 text-black px-2 py-0.5 rounded-full">Simulação</span>` : ''}
+                        <p class="text-sm text-secondary">${description}</p>
+                    </div>
+                    <button class="text-accent hover:text-accent-dark" onclick="carregarProgramacaoHistorico('${item._id}')">
+                        Ver
+                    </button>
+                `;
+                container.appendChild(div);
+            });
+        } else {
+            container.innerHTML = '<p class="text-gray-400">Nenhum histórico encontrado</p>';
         }
-        document.getElementById('kpi-ocupacao').textContent = taxaOcupacao;
+    }
+
+    function updateDashboardKPIs(data) {
+        // Card: Total de Pedidos
+        document.getElementById('kpi-pedidos').textContent = (data.pedidos || 0).toLocaleString('pt-BR');
+        // Card: Total de Itens para Pedidos (clientes)
+        document.getElementById('kpi-itens-pedidos').textContent = (data.itens_pedidos || 0).toLocaleString('pt-BR');
+        // Card: Itens para Estoque
+        document.getElementById('kpi-itens-estoque').textContent = (data.itens_estoque || 0).toLocaleString('pt-BR');
+        // Card: Produtos Sem Molde
+        document.getElementById('kpi-criticos').textContent = (data.criticos || 0).toLocaleString('pt-BR');
+        // Card: Moldes Ociosos
+        document.getElementById('kpi-ociosos').textContent = (data.ociosos || 0).toLocaleString('pt-BR');
+        // Card: Taxa de Ocupação
+        document.getElementById('kpi-ocupacao').textContent = data.ocupacao || '-';
     }
 
     async function fetchAndSetLatestPlanningData() {

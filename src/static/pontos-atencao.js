@@ -12,26 +12,30 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
-        loadAttentionPointsData();
+        loadAttentionPointsData(); // Carrega os dados, usando o cache se disponível
     }
 
     function setupEventListeners() {
         // Sidebar toggle
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
         // Reload button
-        document.getElementById('reload-data-btn').addEventListener('click', loadAttentionPointsData);
+        document.getElementById('reload-data-btn').addEventListener('click', () => loadAttentionPointsData(true));
         // Pagination listeners
-        document.getElementById('pedidos-prev-page').addEventListener('click', () => {
+        document.getElementById('pedidos-prev-page').addEventListener('click', async () => {
             if (currentPagePedidos > 1) {
                 currentPagePedidos--;
-                renderPedidosNaoAtendidosPage();
+                showLoading();
+                await renderPedidosNaoAtendidosPage();
+                hideLoading();
             }
         });
-        document.getElementById('pedidos-next-page').addEventListener('click', () => {
+        document.getElementById('pedidos-next-page').addEventListener('click', async () => {
             const totalPages = Math.ceil(pedidosNaoAtendidosData.length / itemsPerPagePedidos);
             if (currentPagePedidos < totalPages) {
                 currentPagePedidos++;
-                renderPedidosNaoAtendidosPage();
+                showLoading();
+                await renderPedidosNaoAtendidosPage();
+                hideLoading();
             }
         });
 
@@ -72,11 +76,17 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    async function loadAttentionPointsData() {
+    async function loadAttentionPointsData(forceReload = false) {
         showLoading();
+        if (forceReload) {
+            // Limpa ambos os caches para garantir que todos os dados sejam recarregados do servidor.
+            sessionStorage.removeItem('attentionPointsCache');
+            sessionStorage.removeItem('orderDetailsCache');
+            console.log("Caches de pontos de atenção e detalhes de pedidos limpos para forçar recarregamento.");
+        }
         const success = await fetchAndSetLatestPlanningData();
         if (success) {
-            renderAttentionPoints(dadosOriginais);
+            await renderAttentionPoints(dadosOriginais);
         } else {
             const errorMessage = '<tr><td colspan="4" class="text-center p-4 text-secondary">Não foi possível carregar os dados. Gere um novo planejamento.</td></tr>';
             document.getElementById('ociosos-table').querySelector('tbody').innerHTML = errorMessage;
@@ -89,6 +99,16 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchAndSetLatestPlanningData() {
+        const cacheKey = 'attentionPointsCache';
+        const cachedData = sessionStorage.getItem(cacheKey);
+
+        if (cachedData) {
+            console.log("Carregando dados dos pontos de atenção do cache da sessão.");
+            dadosOriginais = JSON.parse(cachedData);
+            return true;
+        }
+
+        console.log("Buscando dados dos pontos de atenção do servidor (não encontrado no cache).");
         try {
             const response = await fetch('/api/gantt/obter_ultimo_planejamento');
             const result = await response.json();
@@ -97,6 +117,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
             }
             dadosOriginais = result.ultimo_planejamento;
+
+            // Salva no cache para uso futuro na mesma sessão
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
+            } catch (e) {
+                console.warn("Não foi possível salvar os dados dos pontos de atenção no cache: " + e.name);
+            }
+
             return true;
         } catch (error) {
             console.error(`Erro ao buscar último planejamento: ${error.message}`);
@@ -105,10 +133,10 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function renderAttentionPoints(data) {
+    async function renderAttentionPoints(data) {
         fillAttentionTables(data);
         generateOptimizationSuggestions(data);
-        fillPedidosNaoAtendidosTable(data);
+        await fillPedidosNaoAtendidosTable(data);
     }
 
     function fillAttentionTables(data) {
@@ -288,10 +316,13 @@ document.addEventListener("DOMContentLoaded", () => {
     async function fillPedidosNaoAtendidosTable(data) {
         const tableBody = document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody');
         const paginationControls = document.getElementById('pedidos-nao-atendidos-pagination');
-        tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Carregando detalhes dos pedidos...</td></tr>';
+        tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Analisando pedidos...</td></tr>';
         paginationControls.classList.add('hidden'); // Hide pagination while loading
 
-        const stockOrderIds = ["9999997", "9999998", "9999999"];
+        // Carrega o cache de detalhes de pedidos da sessão
+        const orderDetailsCache = JSON.parse(sessionStorage.getItem('orderDetailsCache')) || {};
+
+        const stockOrderIds = ["9999997", "9999998", "9999999"]; // Pedidos de estoque
         const necessidades = (data.necessidade_sem_moldes_data || [])
             .filter(item => item["Qtd. Moldes Cadastrados"] > 0 && !stockOrderIds.includes(String(item.Pedido)));
 
@@ -305,50 +336,34 @@ document.addEventListener("DOMContentLoaded", () => {
         const pedidosAgrupados = necessidades.reduce((acc, necessidade) => {
             const pedidoId = String(parseInt(necessidade.Pedido)); // Normalize pedido ID
             if (!acc[pedidoId]) {
-                acc[pedidoId] = { itens: [], detalhes: null };
+                const cachedDetails = orderDetailsCache[pedidoId];
+                acc[pedidoId] = {
+                    itens: [],
+                    cliente: cachedDetails ? cachedDetails.cliente : null,
+                    valorPedido: cachedDetails ? cachedDetails.valor : null
+                };
             }
             acc[pedidoId].itens.push(necessidade);
             return acc;
         }, {});
 
-        // Fetch details for all unique orders in parallel
-        const promises = Object.keys(pedidosAgrupados).map(async (pedidoId) => {
-            try {
-                const response = await fetch(`/api/gantt/detalhes_pedido/${pedidoId}`);
-                if (response.ok) {
-                    pedidosAgrupados[pedidoId].detalhes = await response.json();
-                }
-            } catch (error) {
-                console.error(`Erro ao buscar detalhes para o pedido ${pedidoId}:`, error);
-            }
-        });
-
-        await Promise.all(promises);
-
-        // Group data by order for expandable rows, and sort by order value
+        // Mapeia os dados para a estrutura final, mas sem os detalhes de cliente/valor ainda.
+        // Ordena por ID do pedido para uma lista inicial consistente.
         pedidosNaoAtendidosData = Object.entries(pedidosAgrupados)
-            .filter(([, info]) => info.detalhes) // Only include orders for which we got details
-            .map(([pedidoId, info]) => ({
+            .map(([pedidoId, data]) => ({
                 pedidoId: pedidoId,
-                cliente: info.detalhes.cliente,
-                valorPedido: info.detalhes.valor,
-                itens: info.itens.sort((a, b) => (a.Produto || a.Nome).localeCompare(b.Produto || b.Nome)) // Sort items alphabetically
+                cliente: data.cliente, // será null inicialmente
+                valorPedido: data.valorPedido, // será null inicialmente
+                itens: data.itens.sort((a, b) => (a.Produto || a.Nome).localeCompare(b.Produto || b.Nome))
             }))
-            .sort((a, b) => b.valorPedido - a.valorPedido);
-
-
-        if (pedidosNaoAtendidosData.length === 0) {
-            tableBody.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Não foi possível carregar os detalhes dos pedidos.</td></tr>';
-            paginationControls.classList.add('hidden');
-            return;
-        }
+            .sort((a, b) => parseInt(a.pedidoId) - parseInt(b.pedidoId));
 
         // Render the first page
         currentPagePedidos = 1;
-        renderPedidosNaoAtendidosPage();
+        await renderPedidosNaoAtendidosPage();
     }
 
-    function renderPedidosNaoAtendidosPage() {
+    async function renderPedidosNaoAtendidosPage() {
         const tableBody = document.getElementById('pedidos-nao-atendidos-table').querySelector('tbody');
         const paginationControls = document.getElementById('pedidos-nao-atendidos-pagination');
         const pageInfo = document.getElementById('pedidos-page-info');
@@ -362,15 +377,57 @@ document.addEventListener("DOMContentLoaded", () => {
         const end = start + itemsPerPagePedidos;
         const pageData = pedidosNaoAtendidosData.slice(start, end);
 
-        pageData.forEach(order => {
+        // Identifica quais pedidos na página atual ainda não têm detalhes carregados.
+        const pedidosParaBuscar = pageData.filter(p => p.cliente === null);
+
+        if (pedidosParaBuscar.length > 0) {
+            // Carrega o cache para atualizá-lo com os novos dados
+            const orderDetailsCache = JSON.parse(sessionStorage.getItem('orderDetailsCache')) || {};
+
+            const promises = pedidosParaBuscar.map(async (pedido) => {
+                try {
+                    const response = await fetch(`/api/gantt/detalhes_pedido/${pedido.pedidoId}`);
+                    if (response.ok) {
+                        const detalhes = await response.json();
+                        // Atualiza o item no array principal (pedidosNaoAtendidosData) para cache
+                        const originalItem = pedidosNaoAtendidosData.find(p => p.pedidoId === pedido.pedidoId);
+                        if (originalItem) {
+                            originalItem.cliente = detalhes.cliente;
+                            originalItem.valorPedido = detalhes.valor;
+                            // Salva os detalhes recém-buscados no cache
+                            orderDetailsCache[pedido.pedidoId] = { cliente: detalhes.cliente, valor: detalhes.valor };
+                        }
+                    }
+                } catch (error) {
+                    console.error(`Erro ao buscar detalhes para o pedido ${pedido.pedidoId}:`, error);
+                    // Deixa os detalhes como null para que possa tentar novamente
+                }
+            });
+            await Promise.all(promises);
+
+            // Salva o cache atualizado de volta no sessionStorage
+            sessionStorage.setItem('orderDetailsCache', JSON.stringify(orderDetailsCache));
+        }
+
+        // Após buscar os detalhes, reordena a lista completa pelo valor do pedido (decrescente)
+        // Apenas se todos os detalhes já foram carregados para evitar ordenação inconsistente.
+        const allDetailsLoaded = pedidosNaoAtendidosData.every(p => p.cliente !== null);
+        if (allDetailsLoaded) {
+            pedidosNaoAtendidosData.sort((a, b) => b.valorPedido - a.valorPedido);
+        }
+
+        // Pega os dados da página novamente após a possível reordenação
+        const finalPageData = pedidosNaoAtendidosData.slice(start, end);
+
+        finalPageData.forEach(order => {
             const detailRowId = `details-for-pedido-${order.pedidoId}`;
 
             const mainRowHtml = `
                 <tr class="main-row border-b border-gray-700 hover:bg-gray-700 cursor-pointer" data-target-id="${detailRowId}">
                     <td class="px-4 py-3 text-center text-secondary"><i class="fas fa-chevron-down transition-transform"></i></td>
                     <td class="px-4 py-3 font-semibold">${order.pedidoId}</td>
-                    <td class="px-4 py-3">${order.cliente}</td>
-                    <td class="px-4 py-3 text-right font-mono">${order.valorPedido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}</td>
+                    <td class="px-4 py-3">${order.cliente || '<i class="fas fa-spinner fa-spin"></i>'}</td>
+                    <td class="px-4 py-3 text-right font-mono">${order.valorPedido !== null ? order.valorPedido.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' }) : 'Carregando...'}</td>
                 </tr>
             `;
 

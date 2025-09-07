@@ -226,6 +226,21 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Erro ao gerar programação');
             }
 
+            // Limpa os caches de outras páginas para forçar o recarregamento com os novos dados
+            console.log("Limpando caches de sessão para forçar a atualização dos dados...");
+            sessionStorage.removeItem('dashboardKPIsCache');
+            sessionStorage.removeItem('comparisonGanttCache');
+            sessionStorage.removeItem('recentHistoryCache');
+            sessionStorage.removeItem('attentionPointsCache'); // Cache da página Pontos de Atenção
+
+            // Para a página de Projeção, a chave de cache é dinâmica (projecaoData_ID).
+            // Itera sobre as chaves e remove as que correspondem ao padrão.
+            Object.keys(sessionStorage).forEach(key => {
+                if (key.startsWith('projecaoData_')) {
+                    sessionStorage.removeItem(key);
+                }
+            });
+
             // Store results
             dadosOriginais = result;
 

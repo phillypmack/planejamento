@@ -8,11 +8,8 @@
     <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
     <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.0.0"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.min.js"></script>
-    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/frappe-gantt@0.6.1/dist/frappe-gantt.css">
+    <script src="https://cdn.jsdelivr.net/npm/apexcharts"></script>
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
     <style>
         /* Professional Color Palette */
@@ -103,8 +100,10 @@
         }
 
         .gantt-container {
-            overflow-x: auto;
-            max-height: 500px;
+            overflow: auto;
+            /* Habilita rolagem vertical e horizontal */
+            height: 500px;
+            /* Altura fixa para o container, forçando a barra de rolagem quando o conteúdo for maior */
         }
 
         /* Remove old KPI card gradients and apply new solid colors */
@@ -165,77 +164,6 @@
         .step-indicator.completed {
             background-color: var(--color-success);
             color: white;
-        }
-
-        /* Custom Gantt Bar Colors */
-        .gantt .bar-order .bar {
-            fill: var(--color-gantt-order);
-        }
-
-        .gantt .bar-stock .bar {
-            fill: var(--color-gantt-stock);
-        }
-
-        .gantt .bar-comparison-old .bar {
-            fill: var(--color-gantt-old);
-        }
-
-        .gantt .bar-comparison-new .bar {
-            fill: var(--color-gantt-new);
-        }
-
-        .gantt .bar-order .bar-progress,
-        .gantt .bar-stock .bar-progress,
-        .gantt .bar-comparison-old .bar-progress,
-        .gantt .bar-comparison-new .bar-progress {
-            /* Make progress bar darker for contrast */
-            fill: rgba(0, 0, 0, 0.25);
-        }
-
-        /* Forçar cores claras no header do Gantt */
-        .gantt .grid-header text {
-            fill: var(--color-text-main) !important;
-            /* Datas e meses */
-            font-weight: 500;
-        }
-
-        /* Diferenciar meses (linha superior) */
-        .gantt .grid-header .upper-text {
-            fill: var(--color-text-main) !important;
-            /* Meses */
-            font-size: 14px;
-        }
-
-        /* Diferenciar dias (linha inferior) */
-        .gantt .grid-header .lower-text {
-            fill: var(--color-text-secondary) !important;
-            /* Dias */
-            font-size: 12px;
-        }
-
-        /* Gantt Chart Customizations for Dark Theme */
-        .gantt .grid-background {
-            fill: rgba(0, 0, 0, 0.5) !important;
-            /* Fundo preto com 50% de transparência */
-        }
-
-        /* Linhas da grade (verticais e horizontais) */
-        .gantt .tick,
-        .gantt .grid-horizontal-line {
-            stroke: #4a4a4a;
-            /* Linhas de grade escuras */
-        }
-
-        /* Remove o preenchimento das linhas de fundo para que o background do grid apareça */
-        .gantt .grid-row {
-            fill: transparent !important;
-        }
-
-        /* Fonte das tarefas */
-        .gantt .bar-label {
-            fill: #ffffff !important;
-            /* Fonte branca */
-            font-weight: 500;
         }
 
         /* Custom Scrollbar for Gantt Containers */
@@ -379,13 +307,36 @@
 
             <div class="space-y-8">
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Ocupação de Moldes na Timeline</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Ocupação de Moldes por Braço (em Rodadas)</h3>
+                        <div class="flex items-center space-x-2 text-sm text-secondary">
+                            <label for="toggle-moldes" class="cursor-pointer">Mostrar todos</label>
+                            <input type="checkbox" id="toggle-moldes" class="toggle-switch" data-chart="moldes">
+                        </div>
+                    </div>
                     <div id="gantt-moldes-full" class="gantt-container"></div>
                 </div>
 
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold mb-4">Previsão de Conclusão de Pedidos</h3>
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Linha do Tempo de Produção por Pedido</h3>
+                        <div class="flex items-center space-x-2 text-sm text-secondary">
+                            <label for="toggle-pedidos" class="cursor-pointer">Mostrar todos</label>
+                            <input type="checkbox" id="toggle-pedidos" class="toggle-switch" data-chart="pedidos">
+                        </div>
+                    </div>
                     <div id="gantt-pedidos-full" class="gantt-container"></div>
+                </div>
+
+                <div class="bg-primary-light rounded-lg p-6">
+                    <div class="flex justify-between items-center mb-4">
+                        <h3 class="text-xl font-semibold">Alocação de Tarefas por Braço</h3>
+                        <div class="flex items-center space-x-2 text-sm text-secondary">
+                            <label for="toggle-rodadas" class="cursor-pointer">Mostrar todos</label>
+                            <input type="checkbox" id="toggle-rodadas" class="toggle-switch" data-chart="rodadas">
+                        </div>
+                    </div>
+                    <div id="gantt-rodadas-full" class="gantt-container"></div>
                 </div>
             </div>
         </div>

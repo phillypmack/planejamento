@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        loadOtimizacaoData(); // Tenta carregar do cache ao iniciar
     }
 
     function setupEventListeners() {
@@ -14,7 +15,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
 
         // Otimização de Setup
-        document.getElementById('load-latest-for-otimizacao-btn').addEventListener('click', handleLoadLatestForOtimizacao);
+        document.getElementById('load-latest-for-otimizacao-btn').addEventListener('click', () => loadOtimizacaoData(true));
         document.getElementById('reset-simulation-btn').addEventListener('click', handleResetOtimizacao);
         document.getElementById('save-simulation-btn').addEventListener('click', handleSaveSandbox);
         document.getElementById('load-simulation-btn').addEventListener('click', openLoadSimulationModal);
@@ -41,7 +42,18 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    async function fetchAndSetLatestPlanningData() {
+    async function fetchAndSetLatestPlanningData(forceReload = false) {
+        const cacheKey = 'otimizacaoSetupCache';
+        if (!forceReload) {
+            const cachedData = sessionStorage.getItem(cacheKey);
+            if (cachedData) {
+                console.log("Carregando dados de otimização do cache da sessão.");
+                dadosOriginais = JSON.parse(cachedData);
+                return true;
+            }
+        }
+
+        console.log("Buscando dados de otimização do servidor.");
         try {
             const response = await fetch('/api/gantt/obter_ultimo_planejamento');
             const result = await response.json();
@@ -50,6 +62,14 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
             }
             dadosOriginais = result.ultimo_planejamento;
+
+            // Salva no cache para uso futuro na mesma sessão
+            try {
+                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
+            } catch (e) {
+                console.warn("Não foi possível salvar os dados de otimização no cache: " + e.name);
+            }
+
             return true;
         } catch (error) {
             alert(`Erro ao buscar último planejamento: ${error.message}`);
@@ -66,14 +86,22 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('loading-layer').classList.add('hidden');
     }
 
-    async function handleLoadLatestForOtimizacao() {
+    async function loadOtimizacaoData(forceReload = false) {
         showLoading();
-        const success = await fetchAndSetLatestPlanningData();
-        if (success) {
+        if (forceReload) {
+            sessionStorage.removeItem('otimizacaoSetupCache');
+            console.log("Cache de otimização limpo para forçar recarregamento.");
+        }
+        const success = await fetchAndSetLatestPlanningData(forceReload);
+        if (success && dadosOriginais) {
             renderOtimizacaoSetupTable(dadosOriginais.programacao_data);
             document.getElementById('reset-simulation-btn').classList.remove('hidden');
             document.getElementById('save-simulation-btn').classList.remove('hidden');
             document.getElementById('simulation-mode-notice').classList.remove('hidden');
+        } else if (!forceReload) {
+            // Se não for reload forçado e não houver sucesso (nem cache), não mostra erro, apenas fica quieto.
+            // O usuário pode carregar manualmente se quiser.
+            console.log("Nenhum dado de otimização no cache. Aguardando ação do usuário.");
         }
         hideLoading();
     }
