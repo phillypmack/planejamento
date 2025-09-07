@@ -50,7 +50,8 @@ document.addEventListener("DOMContentLoaded", () => {
             const cachedData = sessionStorage.getItem(cacheKey);
             if (cachedData) {
                 console.log("Carregando dados de análise do cache da sessão.");
-                dadosOriginais = JSON.parse(cachedData);
+                // O cache agora contém apenas 'programacao_data', então reconstruímos o objeto necessário.
+                dadosOriginais = { programacao_data: JSON.parse(cachedData) };
                 return true;
             }
         }
@@ -66,7 +67,10 @@ document.addEventListener("DOMContentLoaded", () => {
             dadosOriginais = result.ultimo_planejamento;
 
             try {
-                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
+                // Salva apenas a parte necessária dos dados (programacao_data) para evitar estourar a cota.
+                if (dadosOriginais && dadosOriginais.programacao_data) {
+                    sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais.programacao_data));
+                }
             } catch (e) {
                 console.warn("Não foi possível salvar os dados de análise no cache: " + e.name);
             }

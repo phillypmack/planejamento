@@ -72,7 +72,9 @@ document.addEventListener("DOMContentLoaded", () => {
             const cachedData = sessionStorage.getItem(cacheKey);
             if (cachedData) {
                 console.log("Carregando dados principais de projeção do cache da sessão.");
-                dadosOriginais = JSON.parse(cachedData);
+                // O cache agora armazena apenas o ID para economizar espaço.
+                // Reconstruímos um objeto mínimo necessário para o restante da lógica.
+                dadosOriginais = { _id: JSON.parse(cachedData) };
                 return true;
             }
         }
@@ -87,9 +89,11 @@ document.addEventListener("DOMContentLoaded", () => {
             }
             dadosOriginais = result.ultimo_planejamento;
 
-            // Salva no cache para uso futuro na mesma sessão
+            // Salva apenas o ID no cache para evitar problemas de cota de armazenamento.
             try {
-                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
+                if (dadosOriginais && dadosOriginais._id) {
+                    sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais._id));
+                }
             } catch (e) {
                 console.warn("Não foi possível salvar os dados de projeção no cache: " + e.name);
             }
@@ -145,21 +149,27 @@ document.addEventListener("DOMContentLoaded", () => {
             return;
         }
 
-        const cacheKey = `projecaoData_${programacaoId}`;
-        const cachedData = sessionStorage.getItem(cacheKey);
+        // Cache inteligente: carrega apenas os dados dos gráficos. Detalhes são carregados sob demanda.
+        const chartCacheKey = `projecaoChartData_${programacaoId}`;
+        const cachedChartData = sessionStorage.getItem(chartCacheKey);
 
-        if (cachedData) {
-            console.log("Carregando dados de projeção do cache da sessão.");
-            const result = JSON.parse(cachedData);
-            projecaoDetalhes = result.detalhes_por_dia || {};
-            createProjecaoQuantidadeChart(result);
-            createProjecaoItensChart(result);
-            createProjecaoValorChart(result);
-            return; // Finaliza a execução após carregar do cache
+        if (cachedChartData) {
+            console.log("Carregando dados de projeção (gráficos) do cache da sessão.");
+            const chartData = JSON.parse(cachedChartData);
+
+            // Detalhes não são cacheados para economizar espaço. Serão buscados sob demanda.
+            // Definir projecaoDetalhes como null indica que eles precisam ser buscados.
+            projecaoDetalhes = null;
+
+            // Renderiza os gráficos com os dados do cache
+            createProjecaoQuantidadeChart(chartData);
+            createProjecaoItensChart(chartData);
+            createProjecaoValorChart(chartData); // O handler de clique buscará os detalhes se necessário
+            return;
         }
 
 
-        console.log("Buscando dados de projeção do servidor (não encontrado no cache).");
+        console.log("Buscando dados de projeção completos do servidor (não encontrado no cache).");
         try {
             const response = await fetch('/api/gantt/projecao_finalizacao_pedidos', {
                 method: 'POST',
@@ -173,14 +183,24 @@ document.addEventListener("DOMContentLoaded", () => {
                 throw new Error(result.error || 'Erro ao carregar dados da projeção');
             }
 
-            // Salva os dados no cache da sessão para uso futuro, se possível.
+            // Separa os dados dos gráficos (leves) dos detalhes (pesados)
+            const chartDataToCache = {
+                labels: result.labels,
+                data_quantidade: result.data_quantidade,
+                data_valor: result.data_valor,
+                data_itens: result.data_itens
+            };
+
+            // Mantém os detalhes completos em memória para a sessão atual
+            projecaoDetalhes = result.detalhes_por_dia || {};
+
+            // Salva apenas os dados leves dos gráficos no cache
             try {
-                sessionStorage.setItem(cacheKey, JSON.stringify(result));
+                sessionStorage.setItem(chartCacheKey, JSON.stringify(chartDataToCache));
             } catch (e) {
                 console.warn(`Não foi possível salvar os dados de projeção no cache (provavelmente devido ao tamanho): ${e.name}`);
             }
 
-            projecaoDetalhes = result.detalhes_por_dia || {};
             createProjecaoQuantidadeChart(result);
             createProjecaoItensChart(result);
             createProjecaoValorChart(result);
@@ -302,12 +322,39 @@ document.addEventListener("DOMContentLoaded", () => {
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
-                onClick: (event, elements) => {
+                onClick: async (event, elements) => { // Handler de clique agora é assíncrono
                     if (elements.length > 0) {
                         const chartElement = elements[0];
                         const index = chartElement.index;
                         const dataSelecionada = data.labels[index];
-                        const detalhesDoDia = projecaoDetalhes[dataSelecionada];
+
+                        // Se os detalhes não estão na memória (carregado do cache), busca no servidor
+                        if (!projecaoDetalhes) {
+                            showLoading();
+                            console.log("Detalhes não encontrados em memória, buscando do servidor...");
+                            const programacaoId = dadosOriginais ? dadosOriginais._id : null;
+                            if (programacaoId) {
+                                try {
+                                    const response = await fetch('/api/gantt/projecao_finalizacao_pedidos', {
+                                        method: 'POST',
+                                        headers: { 'Content-Type': 'application/json' },
+                                        body: JSON.stringify({ programacao_id: programacaoId })
+                                    });
+                                    const fullResult = await response.json();
+                                    if (!response.ok) throw new Error(fullResult.error);
+                                    // Popula os detalhes para uso na sessão atual
+                                    projecaoDetalhes = fullResult.detalhes_por_dia || {};
+                                } catch (e) {
+                                    alert("Erro ao buscar detalhes da projeção.");
+                                    hideLoading();
+                                    return; // Para a execução se a busca falhar
+                                } finally {
+                                    hideLoading();
+                                }
+                            }
+                        }
+
+                        const detalhesDoDia = projecaoDetalhes ? projecaoDetalhes[dataSelecionada] : null;
                         if (detalhesDoDia) {
                             displayProjecaoDetalhes(dataSelecionada, detalhesDoDia);
                         }
