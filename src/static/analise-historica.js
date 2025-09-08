@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
     }
 
     function setupEventListeners() {
@@ -120,7 +121,8 @@ document.addEventListener("DOMContentLoaded", () => {
             historico.forEach(item => {
                 const date = new Date(item.timestamp).toLocaleString('pt-BR');
                 const isSimulation = item.tipo === 'Simulação de Setup';
-                const description = item.descricao || (isSimulation ? 'Simulação de Setup' : `Braço: ${item.braco_selecionado || 'Todos'}`);
+                const shortDescription = item.descricao || (isSimulation ? 'Simulação de Setup' : `Braço: ${item.braco_selecionado || 'Todos'}`);
+                const bannerDescription = `${shortDescription} (Gerado em: ${date})`;
 
                 const div = document.createElement('div');
                 div.className = `flex items-center justify-between p-3 rounded-lg ${isSimulation ? 'bg-yellow-900 bg-opacity-30 border-l-4 border-yellow-500' : 'bg-gray-700'}`;
@@ -130,11 +132,11 @@ document.addEventListener("DOMContentLoaded", () => {
                         <div>
                             <span class="text-gray-300 font-medium">${date}</span>
                             ${isSimulation ? `<span class="ml-2 text-xs font-semibold bg-yellow-500 text-black px-2 py-0.5 rounded-full">Simulação</span>` : ''}
-                            <p class="text-sm text-secondary">${description}</p>
+                            <p class="text-sm text-secondary">${shortDescription}</p>
                         </div>
                     </div>
                     <div class="flex items-center space-x-2">
-                        <button class="px-3 py-1 bg-accent text-white rounded hover:bg-accent-dark" onclick="carregarProgramacaoHistorico('${item._id}')">Carregar</button>
+                        <button class="px-3 py-1 bg-accent text-white rounded hover:bg-accent-dark" onclick="carregarProgramacaoHistorico('${item._id}', '${bannerDescription.replace(/'/g, "\\'")}')">Carregar</button>
                         <button class="px-3 py-1 bg-error text-white rounded hover:bg-error-dark" onclick="excluirProgramacaoHistorico('${item._id}')">Excluir</button>
                     </div>
                 `;
@@ -284,8 +286,15 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('loading-layer').classList.add('hidden');
     }
 
-    window.carregarProgramacaoHistorico = async function (id) {
-        window.location.href = `planejamento.html?load=${id}`;
+    window.carregarProgramacaoHistorico = async function (id, description) {
+        if (!id) return;
+
+        // Define o planejamento ativo no sessionStorage para ser usado em todo o sistema
+        sessionStorage.setItem('activePlanId', id);
+        sessionStorage.setItem('activePlanDescription', description);
+
+        // Redireciona para a página de planejamento, que agora lerá o ID do sessionStorage
+        window.location.href = `planejamento.html`;
     };
 
     window.excluirProgramacaoHistorico = async function (id) {

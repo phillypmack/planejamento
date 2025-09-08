@@ -11,6 +11,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         loadProjecaoData(); // Tenta carregar do cache ao iniciar
     }
 
@@ -67,42 +68,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchAndSetLatestPlanningData(forceReload = false) {
-        const cacheKey = 'projecaoMainCache';
-        if (!forceReload) {
-            const cachedData = sessionStorage.getItem(cacheKey);
-            if (cachedData) {
-                console.log("Carregando dados principais de projeção do cache da sessão.");
-                // O cache agora armazena apenas o ID para economizar espaço.
-                // Reconstruímos um objeto mínimo necessário para o restante da lógica.
-                dadosOriginais = { _id: JSON.parse(cachedData) };
-                return true;
-            }
-        }
-
-        console.log("Buscando dados principais de projeção do servidor.");
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
-            }
-            dadosOriginais = result.ultimo_planejamento;
-
-            // Salva apenas o ID no cache para evitar problemas de cota de armazenamento.
-            try {
-                if (dadosOriginais && dadosOriginais._id) {
-                    sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais._id));
-                }
-            } catch (e) {
-                console.warn("Não foi possível salvar os dados de projeção no cache: " + e.name);
-            }
-            return true;
-        } catch (error) {
-            alert(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null;
-            return false;
-        }
+        // Utiliza a nova função compartilhada para buscar os dados corretos
+        dadosOriginais = await fetchActivePlanningData(forceReload);
+        return dadosOriginais !== null;
     }
 
     async function loadProjecaoData(forceReload = false) {

@@ -449,8 +449,29 @@
                     </div>
                 </div>
                 <div class="bg-primary-light rounded-lg p-4">
-                    <h4 class="font-semibold mb-3 text-lg text-red-400">Necessidade ainda não atendidas neste
-                        planejamento</h4>
+                    <div class="flex justify-between items-center mb-3">
+                        <h4 class="font-semibold text-lg text-red-400">Necessidade ainda não atendidas neste
+                            planejamento</h4>
+                        <div class="flex items-center space-x-4 text-sm">
+                            <span class="text-secondary">Filtrar por:</span>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="necessidade-filter" value="todos"
+                                    class="form-radio h-4 w-4 text-accent bg-gray-700 border-gray-600 focus:ring-accent"
+                                    checked>
+                                <span class="ml-2 text-main">Todos</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="necessidade-filter" value="pedidos"
+                                    class="form-radio h-4 w-4 text-accent bg-gray-700 border-gray-600 focus:ring-accent">
+                                <span class="ml-2 text-main">Pedidos</span>
+                            </label>
+                            <label class="flex items-center cursor-pointer">
+                                <input type="radio" name="necessidade-filter" value="estoque"
+                                    class="form-radio h-4 w-4 text-accent bg-gray-700 border-gray-600 focus:ring-accent">
+                                <span class="ml-2 text-main">Estoque</span>
+                            </label>
+                        </div>
+                    </div>
                     <div class="overflow-x-auto max-h-72">
                         <table id="necessidade-table" class="min-w-full text-sm text-left text-main">
                             <thead class="text-xs text-main uppercase bg-primary-dark">
@@ -504,6 +525,7 @@
     </div>
 
     </div>
+    <script src="shared.js"></script>
 
     <script src="pontos-atencao.js"></script>
 </body>

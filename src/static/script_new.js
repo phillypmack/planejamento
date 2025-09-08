@@ -7,6 +7,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         loadDashboardData(); // Carrega KPIs e histórico recente
 
         // Check for hash in URL to show a specific section

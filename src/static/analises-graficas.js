@@ -8,6 +8,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         loadAndRenderCharts(); // Load data on initial page load
     }
 
@@ -45,41 +46,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchAndSetLatestPlanningData(forceReload = false) {
-        const cacheKey = 'analisesGraficasCache'; // Use a specific cache key
-        if (!forceReload) {
-            const cachedData = sessionStorage.getItem(cacheKey);
-            if (cachedData) {
-                console.log("Carregando dados de análise do cache da sessão.");
-                // O cache agora contém apenas 'programacao_data', então reconstruímos o objeto necessário.
-                dadosOriginais = { programacao_data: JSON.parse(cachedData) };
-                return true;
-            }
-        }
-
-        console.log("Buscando dados de análise do servidor.");
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
-            }
-            dadosOriginais = result.ultimo_planejamento;
-
-            try {
-                // Salva apenas a parte necessária dos dados (programacao_data) para evitar estourar a cota.
-                if (dadosOriginais && dadosOriginais.programacao_data) {
-                    sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais.programacao_data));
-                }
-            } catch (e) {
-                console.warn("Não foi possível salvar os dados de análise no cache: " + e.name);
-            }
-            return true;
-        } catch (error) {
-            alert(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null;
-            return false;
-        }
+        // Utiliza a nova função compartilhada para buscar os dados corretos
+        dadosOriginais = await fetchActivePlanningData(forceReload);
+        return dadosOriginais !== null;
     }
 
     async function loadAndRenderCharts(forceReload = false) {

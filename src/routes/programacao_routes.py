@@ -114,6 +114,12 @@ def upload_setup():
         try:
             logger.info(f"Carregando planilha de Setup: {file.filename}")
             setup_df = pd.read_excel(file)
+            if 'CODGRUPOPROD' in setup_df.columns:
+                logger.info("Convertendo 'CODGRUPOPROD' em setup_df para inteiro para consistência.")
+                setup_df['CODGRUPOPROD'] = pd.to_numeric(setup_df['CODGRUPOPROD'], errors='coerce').fillna(0).astype(int)
+            if 'QTDMOL' in setup_df.columns:
+                logger.info("Convertendo 'QTDMOL' em setup_df para numérico para consistência.")
+                setup_df['QTDMOL'] = pd.to_numeric(setup_df['QTDMOL'], errors='coerce').fillna(0).astype(int)
             logger.info(f"Planilha de Setup '{file.filename}' carregada com sucesso. Dimensões: {setup_df.shape}")
             return jsonify({"message": "Planilha de Setup carregada com sucesso!"}), 200
         except Exception as e:
@@ -135,6 +141,9 @@ def upload_faltas():
         try:
             logger.info(f"Carregando planilha de Faltas: {file.filename}")
             faltas_df = pd.read_excel(file)
+            if 'CODGRUPOPROD' in faltas_df.columns:
+                logger.info("Convertendo 'CODGRUPOPROD' em faltas_df para inteiro para consistência.")
+                faltas_df['CODGRUPOPROD'] = pd.to_numeric(faltas_df['CODGRUPOPROD'], errors='coerce').fillna(0).astype(int)
             logger.info(f"Planilha de Faltas '{file.filename}' carregada com sucesso. Dimensões: {faltas_df.shape}")
             return jsonify({"message": "Planilha de Faltas carregada com sucesso!"}), 200
         except Exception as e:
@@ -214,6 +223,12 @@ def gerar_programacao_route():
             logger.error(f"Nenhum dado encontrado para o braço selecionado: {braco_selecionado}")
             return jsonify({"error": f"Nenhum dado encontrado para o braço selecionado: {braco_selecionado}"}), 400
         logger.info(f"Encontrados {len(bracos_moldes)} registros de moldes para os braços selecionados.")
+
+        # Criar um mapa de CODGRUPOPROD para QTDMOL para consulta rápida.
+        # Usamos groupby().sum() para agregar corretamente a quantidade de moldes
+        # caso um mesmo produto esteja configurado em mais de um braço.
+        mold_quantity_map = setup_df.groupby('CODGRUPOPROD')['QTDMOL'].sum().to_dict() if setup_df is not None and not setup_df.empty else {}
+
 
         priorizacao_pedidos = []
         if priorizacao_pedidos_str.strip():
@@ -424,12 +439,18 @@ def gerar_programacao_route():
                         qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["Qtd. Moldes"], errors='coerce').fillna(0).astype(int).sum()
                     elif "QTDMOL" in cadastro_filtro.columns:
                         qtd_moldes_cadastrados = pd.to_numeric(cadastro_filtro["QTDMOL"], errors='coerce').fillna(0).astype(int).sum()
+            
+            # Usa o mapa criado no início para obter a quantidade de moldes instalados.
+            qtd_moldes_instalados = mold_quantity_map.get(produto_faltante["CODGRUPOPROD"], 0)
+
             necessidade_item = {
                 "Nome": produto_faltante["DESCRGRUPOPROD"],
+                "Produto": produto_faltante["DESCRGRUPOPROD"], # Adicionando para consistência
                 "Pedido": produto_faltante["NUNOTA"],
                 "Cor": produto_faltante["COR"],
                 "Quantidade": produto_faltante["Quantidade que Falta Programar"],
-                "Qtd. Moldes Cadastrados": qtd_moldes_cadastrados
+                "Qtd. Moldes Cadastrados": qtd_moldes_cadastrados,
+                "Qtd. Moldes Instalados": int(qtd_moldes_instalados)
             }
             necessidade_sem_moldes_list.append(necessidade_item)
         

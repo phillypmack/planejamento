@@ -21,11 +21,12 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         setDefaultStartDate();
 
         // Check for a query parameter to load a specific historical plan
-        const urlParams = new URLSearchParams(window.location.search);
-        const planToLoadId = urlParams.get('load');
+        // Agora, verifica o sessionStorage para um plano ativo
+        const planToLoadId = sessionStorage.getItem('activePlanId');
         if (planToLoadId) {
             loadAndShowHistoricPlan(planToLoadId);
         }

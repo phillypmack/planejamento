@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         loadAttentionPointsData(); // Carrega os dados, usando o cache se disponível
     }
 
@@ -53,6 +54,15 @@ document.addEventListener("DOMContentLoaded", () => {
                 icon.classList.toggle('fa-chevron-down');
                 icon.classList.toggle('fa-chevron-up');
             }
+        });
+
+        // Add new listener for the necessity filter
+        document.querySelectorAll('input[name="necessidade-filter"]').forEach(radio => {
+            radio.addEventListener('change', () => {
+                if (dadosOriginais) {
+                    fillAttentionTables(dadosOriginais);
+                }
+            });
         });
     }
 
@@ -99,38 +109,10 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchAndSetLatestPlanningData() {
-        const cacheKey = 'attentionPointsCache';
-        const cachedData = sessionStorage.getItem(cacheKey);
-
-        if (cachedData) {
-            console.log("Carregando dados dos pontos de atenção do cache da sessão.");
-            dadosOriginais = JSON.parse(cachedData);
-            return true;
-        }
-
-        console.log("Buscando dados dos pontos de atenção do servidor (não encontrado no cache).");
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
-            }
-            dadosOriginais = result.ultimo_planejamento;
-
-            // Salva no cache para uso futuro na mesma sessão
-            try {
-                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
-            } catch (e) {
-                console.warn("Não foi possível salvar os dados dos pontos de atenção no cache: " + e.name);
-            }
-
-            return true;
-        } catch (error) {
-            console.error(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null;
-            return false;
-        }
+        // Utiliza a nova função compartilhada para buscar os dados corretos
+        // O cache é gerenciado dentro da função fetchActivePlanningData se necessário no futuro.
+        dadosOriginais = await fetchActivePlanningData();
+        return dadosOriginais !== null;
     }
 
     async function renderAttentionPoints(data) {
@@ -161,7 +143,22 @@ document.addEventListener("DOMContentLoaded", () => {
         const necessidadeTable = document.getElementById('necessidade-table').querySelector('tbody');
         necessidadeTable.innerHTML = '';
         if (data.necessidade_sem_moldes_data && data.necessidade_sem_moldes_data.length > 0) {
-            const necessidadeFiltrada = data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0);
+            // Get the current filter value
+            const filterValue = document.querySelector('input[name="necessidade-filter"]:checked').value;
+            const stockOrderIds = ["9999997", "9999998", "9999999"];
+
+            let necessidadeComMoldes = data.necessidade_sem_moldes_data.filter(item => item["Qtd. Moldes Cadastrados"] > 0);
+
+            // Apply the new filter
+            let necessidadeFiltrada;
+            if (filterValue === 'pedidos') {
+                necessidadeFiltrada = necessidadeComMoldes.filter(item => !stockOrderIds.includes(String(item.Pedido)));
+            } else if (filterValue === 'estoque') {
+                necessidadeFiltrada = necessidadeComMoldes.filter(item => stockOrderIds.includes(String(item.Pedido)));
+            } else { // 'todos'
+                necessidadeFiltrada = necessidadeComMoldes;
+            }
+
             if (necessidadeFiltrada.length > 0) {
                 const necessidadeAgrupada = necessidadeFiltrada.reduce((acc, item) => {
                     const produtoNome = item.Produto || item.Nome;
@@ -181,10 +178,10 @@ document.addEventListener("DOMContentLoaded", () => {
                     `;
                 });
             } else {
-                necessidadeTable.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-secondary">Nenhuma necessidade de molde não atendida.</td></tr>';
+                necessidadeTable.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-secondary">Nenhuma necessidade encontrada para o filtro selecionado.</td></tr>';
             }
         } else {
-            necessidadeTable.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-secondary">Nenhuma necessidade de molde não atendida.</td></tr>';
+            necessidadeTable.innerHTML = '<tr><td colspan="3" class="text-center p-4 text-secondary">Nenhum dado de necessidade não atendida.</td></tr>';
         }
 
         // Fill stock production table

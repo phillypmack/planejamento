@@ -14,6 +14,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function initializeApp() {
         setupEventListeners();
+        displayActivePlanBanner();
         loadAndRenderGanttCharts();
     }
 
@@ -91,38 +92,9 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     async function fetchAndSetLatestPlanningData(forceReload = false) {
-        const cacheKey = 'ganttChartCache';
-        if (!forceReload) {
-            const cachedData = sessionStorage.getItem(cacheKey);
-            if (cachedData) {
-                console.log("Carregando dados do Gantt do cache da sessão.");
-                dadosOriginais = JSON.parse(cachedData);
-                return true;
-            }
-        }
-
-        console.log("Buscando dados do Gantt do servidor.");
-        try {
-            const response = await fetch('/api/gantt/obter_ultimo_planejamento');
-            const result = await response.json();
-
-            if (!response.ok) {
-                throw new Error(result.error || 'Nenhum planejamento encontrado no histórico');
-            }
-            dadosOriginais = result.ultimo_planejamento;
-
-            // Salva no cache para uso futuro na mesma sessão
-            try {
-                sessionStorage.setItem(cacheKey, JSON.stringify(dadosOriginais));
-            } catch (e) {
-                console.warn("Não foi possível salvar os dados do Gantt no cache: " + e.name);
-            }
-            return true;
-        } catch (error) {
-            alert(`Erro ao buscar último planejamento: ${error.message}`);
-            dadosOriginais = null;
-            return false;
-        }
+        // Utiliza a nova função compartilhada para buscar os dados corretos
+        dadosOriginais = await fetchActivePlanningData(forceReload);
+        return dadosOriginais !== null;
     }
 
     /**
