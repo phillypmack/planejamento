@@ -3,10 +3,10 @@ version: '3.8'
 services:
   app:
     build: .
-    container_name: auto_prog
+    container_name: mrp_pcp
     restart: always
     ports:
-      - "5000:5000"
+      - "5002:5002"
     volumes:
       - .:/app
     networks:

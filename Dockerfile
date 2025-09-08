@@ -11,7 +11,7 @@ COPY . /app
 RUN pip install --no-cache-dir -r requirements.txt
 
 # Expõe a porta 5000
-EXPOSE 5000
+EXPOSE 5002
 
 # Comando para iniciar o servidor
 CMD ["python", "src/main.py"]
