@@ -457,7 +457,7 @@ document.addEventListener("DOMContentLoaded", () => {
             alerts.push({
                 type: 'error',
                 icon: 'fa-exclamation-triangle',
-                message: `${withoutMolds} produtos precisam de moldes para atender a demanda.`
+                message: `${withoutMolds} SKUs precisam de moldes para atender a demanda.`
             });
         }
 

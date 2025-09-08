@@ -528,7 +528,6 @@
                         <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="gantt-tab">Gráficos Gantt</button>
                         <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="detalhes">Programação
                             Detalhada</button>
-                        <button class="tab-button px-4 py-2 rounded-t-lg" data-tab="graficos">Análises Gráficas</button>
                     </div>
 
                     <!-- Tab Contents -->
@@ -547,7 +546,7 @@
                                 <p id="resumo-ociosos" class="text-2xl font-bold">-</p>
                             </div>
                             <div class="bg-warning p-4 rounded-lg text-gray-800">
-                                <h4 class="font-semibold">Produtos Sem Molde instalado</h4>
+                                <h4 class="font-semibold">SKUs não planejados</h4>
                                 <p id="resumo-sem-molde" class="text-2xl font-bold">-</p>
                             </div>
                         </div>
@@ -602,27 +601,6 @@
                             <!-- Pagination Controls -->
                             <div id="programacao-pagination" class="flex justify-between items-center mt-4 text-sm">
                                 <!-- This will be populated by JavaScript -->
-                            </div>
-                        </div>
-                    </div>
-
-                    <div id="graficos-tab" class="tab-content hidden">
-                        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                            <div class="bg-primary-dark p-4 rounded-lg">
-                                <h4 class="font-semibold mb-3">Quantidade por Produto</h4>
-                                <canvas id="graficoProdutos"></canvas>
-                            </div>
-                            <div class="bg-primary-dark p-4 rounded-lg">
-                                <h4 class="font-semibold mb-3">Evolução por Data</h4>
-                                <canvas id="graficoEvolucao"></canvas>
-                            </div>
-                            <div class="bg-primary-dark p-4 rounded-lg">
-                                <h4 class="font-semibold mb-3">Moldes por Braço</h4>
-                                <canvas id="graficoMoldesPorBraco"></canvas>
-                            </div>
-                            <div class="bg-primary-dark p-4 rounded-lg">
-                                <h4 class="font-semibold mb-3">Distribuição por Braço</h4>
-                                <canvas id="graficoBracos"></canvas>
                             </div>
                         </div>
                     </div>
