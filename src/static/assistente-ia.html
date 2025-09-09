@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Assistente de IA - Sistema MRP/PCP</title>
+    <link rel="icon" type="image/png" sizes="16x16" href="/favicon-16x16.png">
+    <link rel="icon" type="image/png" sizes="32x32" href="/favicon-32x32.png">
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+    <style>
+        /* Reusing styles from index_new.html for consistency */
+        :root {
+            --color-bg-dark: #2C3E50;
+            --color-bg-light: #34495E;
+            --color-text-main: #ECF0F1;
+            --color-text-secondary: #BDC3C7;
+            --color-accent: #3498DB;
+            --color-accent-dark: #2980B9;
+            --color-success: #2ECC71;
+            --color-success-dark: #27AE60;
+            --color-warning: #F1C40F;
+            --color-error: #E74C3C;
+            --color-error-dark: #C0392B;
+        }
+
+        body {
+            background-color: var(--color-bg-dark);
+            color: var(--color-text-main);
+        }
+
+        .bg-primary-light {
+            background-color: var(--color-bg-light);
+        }
+
+        .bg-primary-dark {
+            background-color: var(--color-bg-dark);
+        }
+
+        .text-main {
+            color: var(--color-text-main);
+        }
+
+        .text-secondary {
+            color: var(--color-text-secondary);
+        }
+
+        .text-accent {
+            color: var(--color-accent);
+        }
+
+        .bg-accent {
+            background-color: var(--color-accent);
+        }
+
+        .hover\:bg-accent-dark:hover {
+            background-color: var(--color-accent-dark);
+        }
+
+        .sidebar {
+            transition: transform 0.3s ease-in-out;
+            background-color: var(--color-bg-light);
+        }
+
+        .sidebar-collapsed {
+            transform: translateX(-100%);
+        }
+
+        .nav-item {
+            transition: all 0.3s ease;
+        }
+
+        .nav-item:hover {
+            background-color: rgba(52, 152, 219, 0.1);
+            transform: translateX(4px);
+        }
+
+        .nav-item.active {
+            background-color: rgba(52, 152, 219, 0.2);
+            border-right: 4px solid var(--color-accent);
+        }
+
+        #ai-chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-track {
+            background: var(--color-bg-light);
+            border-radius: 10px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-thumb {
+            background-color: var(--color-accent);
+            border-radius: 10px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-thumb:hover {
+            background-color: var(--color-accent-dark);
+        }
+
+        #top-loading-bar {
+            background-color: rgba(46, 204, 113, 0.2);
+            overflow: hidden;
+        }
+
+        .loading-bar-progress {
+            height: 100%;
+            width: 100%;
+            background: linear-gradient(to right, transparent, var(--color-success), transparent);
+            animation: loading-animation 1.5s linear infinite;
+        }
+
+        @keyframes loading-animation {
+            from {
+                transform: translateX(-100%);
+            }
+
+            to {
+                transform: translateX(100%);
+            }
+        }
+    </style>
+</head>
+
+<body class="font-sans">
+    <!-- Sidebar -->
+    <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 shadow-lg z-40">
+        <!-- O conteúdo da sidebar será preenchido pelo JS -->
+    </div>
+
+    <!-- Toggle Button -->
+    <button id="sidebar-toggle"
+        class="fixed top-4 left-40 z-50 bg-accent hover:bg-accent-dark text-white p-2 rounded-lg">
+        <i class="fas fa-chevron-left"></i>
+    </button>
+
+    <!-- Main Content -->
+    <div id="main-content" class="relative ml-64 min-h-screen transition-all duration-300">
+        <!-- Top Loading Bar -->
+        <div id="top-loading-bar" class="sticky top-0 w-full h-2 z-50 hidden">
+            <div class="loading-bar-progress"></div>
+        </div>
+
+        <!-- AI Assistant Section -->
+        <div id="assistente-ia-section" class="section p-8 h-screen flex flex-col">
+            <div class="mb-6">
+                <h2 class="text-3xl font-bold text-accent mb-2 flex items-center"><i
+                        class="fas fa-brain mr-4"></i>Assistente de Análise (Gemini)</h2>
+                <p class="text-secondary">Faça perguntas sobre o planejamento de produção ativo para obter insights e
+                    análises.</p>
+            </div>
+
+            <!-- Chat Interface -->
+            <div
+                class="bg-primary-light rounded-lg shadow-xl flex-grow grid grid-rows-[1fr_auto] overflow-hidden max-h-[calc(100vh-12rem)]">
+                <!-- Messages -->
+                <div id="ai-chat-messages" class="overflow-y-auto p-4 space-y-4">
+                    <!-- Chat messages will be appended here -->
+                </div>
+                <!-- Input -->
+                <div class="border-t border-gray-700 p-4 flex items-center space-x-2">
+                    <input type="text" id="ai-chat-input" placeholder="Pergunte sobre o planejamento atual..."
+                        class="flex-grow bg-primary-dark text-white px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                    <button id="ai-chat-send-btn"
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg">
+                        <i class="fas fa-paper-plane"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="shared.js"></script>
+    <script src="assistente-ia.js"></script>
+</body>
+
+</html>

@@ -326,7 +326,8 @@
 <body class="font-sans">
     <!-- IA Icon -->
     <img src="inteligencia-artificial.gif" alt="Ícone de Inteligência Artificial" id="ai-chat-icon"
-        class="fixed top-5 right-5 w-16 h-16 z-50 opacity-75 hover:opacity-100 transition-opacity duration-300 cursor-pointer mix-blend-screen drop-shadow-2xl">
+        class="fixed top-5 right-5 w-16 h-16 z-50 opacity-75 hover:opacity-100 transition-opacity duration-300 cursor-pointer mix-blend-screen drop-shadow-2xl"
+        title="Abrir Assistente de IA">
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 shadow-lg z-40">
         <div class="p-6">
@@ -380,6 +381,11 @@
                 <a href="cadastros.html" class="nav-item flex items-center p-3 rounded-lg" data-section="cadastros">
                     <i class="fas fa-edit mr-3"></i>
                     <span>Cadastros</span>
+                </a>
+                <a href="assistente-ia.html" class="nav-item flex items-center p-3 rounded-lg"
+                    data-section="assistente-ia">
+                    <i class="fas fa-brain mr-3"></i>
+                    <span>Assistente de IA</span>
                 </a>
             </nav>
         </div>
@@ -608,32 +614,24 @@
         </div>
     </div>
 
-    <!-- AI Chat Modal -->
-    <div id="ai-chat-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center hidden">
-        <div
-            class="bg-primary-light rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] grid grid-rows-[auto_1fr_auto] overflow-hidden">
+    <!-- AI Assistant Page Modal -->
+    <div id="ai-assistant-page-modal"
+        class="fixed inset-0 bg-black bg-opacity-70 z-50 flex items-center justify-center hidden p-4 sm:p-8">
+        <div class="bg-primary-light rounded-lg shadow-xl w-full max-w-6xl h-full flex flex-col overflow-hidden">
             <!-- Header -->
-            <div class="flex justify-between items-center border-b border-gray-700 p-4">
+            <div class="flex justify-between items-center border-b border-gray-700 p-4 flex-shrink-0">
                 <h3 class="text-lg font-semibold text-accent flex items-center">
                     <i class="fas fa-brain mr-3"></i>
                     Assistente de Análise (Gemini)
                 </h3>
-                <button id="ai-chat-close-btn" class="text-gray-400 hover:text-white">
-                    <i class="fas fa-times text-xl"></i>
+                <button id="ai-assistant-page-close-btn" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-2xl"></i>
                 </button>
             </div>
-            <!-- Messages -->
-            <div id="ai-chat-messages" class="overflow-y-auto p-4 space-y-4">
-                <!-- Chat messages will be appended here -->
-            </div>
-            <!-- Input -->
-            <div class="border-t border-gray-700 p-4 flex items-center space-x-2">
-                <input type="text" id="ai-chat-input" placeholder="Pergunte sobre o planejamento atual..."
-                    class="flex-grow bg-primary-dark text-black px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
-                <button id="ai-chat-send-btn"
-                    class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg">
-                    <i class="fas fa-paper-plane"></i>
-                </button>
+            <!-- Content -->
+            <div class="flex-grow relative bg-primary-dark">
+                <iframe id="ai-assistant-iframe" src="about:blank" data-src="assistente-ia.html?mode=iframe"
+                    class="w-full h-full border-0" title="Assistente de IA"></iframe>
             </div>
         </div>
     </div>

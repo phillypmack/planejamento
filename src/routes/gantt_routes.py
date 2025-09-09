@@ -1327,12 +1327,13 @@ def get_detalhes_pedido(pedido_id):
 @gantt_bp.route("/chat_gemini", methods=["POST"])
 def chat_gemini():
     """
-    Recebe uma mensagem e um contexto, envia para a API do Gemini e retorna a resposta.
+    Recebe uma mensagem, um contexto e um histórico de chat, envia para a API do Gemini e retorna a resposta.
     """
     try:
         data = request.get_json()
         user_message = data.get("message")
         context = data.get("context")
+        history = data.get("history", [])  # Recebe o histórico da conversa
         api_key = os.getenv("GEMINI_API_KEY")
 
         if not user_message:
@@ -1341,19 +1342,29 @@ def chat_gemini():
             return jsonify({"error": "A chave da API do Gemini não foi configurada no servidor."}), 500
 
         genai.configure(api_key=api_key)
-        model = genai.GenerativeModel('gemini-2.5-flash')
-
+        
+        # O system prompt define o comportamento geral da IA
         system_prompt = (
             "Você é um assistente especialista em PCP (Planejamento e Controle da Produção) e deve se comportar como um analista sênior. "
-            "Não se refira a si mesmo como um analista de pcp senior isso soa prepotente"
+            "Não se refira a si mesmo como um analista de pcp senior isso soa prepotente. "
             "Sua tarefa é analisar os dados de um sistema de planejamento e responder às perguntas do usuário de forma clara, objetiva e baseada **exclusivamente** nos dados fornecidos no contexto. "
             "Não invente informações. Se a resposta não estiver no contexto, afirme que os dados fornecidos não contêm essa informação. "
-            "Use os dados do contexto para embasar suas respostas. Seja direto e informativo."
+            "Use os dados do contexto para embasar suas respostas. Seja direto e informativo. "
+            "O contexto do sistema será fornecido no início da conversa. Use o histórico da conversa para entender perguntas de acompanhamento."
         )
-        
-        full_prompt = f"{system_prompt}\n\n--- CONTEXTO DO SISTEMA ---\n{context}\n\n--- PERGUNTA DO USUÁRIO ---\n{user_message}\n\n--- SUA ANÁLISE ---"
 
-        response = model.generate_content(full_prompt)
+        # Inicia o modelo com a instrução de sistema
+        model = genai.GenerativeModel(
+            'gemini-1.5-flash',  # Usando um modelo válido e eficiente para chat
+            system_instruction=system_prompt
+        )
+
+        # Inicia o chat com o histórico da conversa fornecido pelo frontend
+        chat = model.start_chat(history=history)
+        
+        # Envia a nova mensagem do usuário, incluindo o contexto de dados atual para análise
+        prompt_with_context = f"## CONTEXTO DO SISTEMA PARA ESTA PERGUNTA:\n{context}\n\n## PERGUNTA DO USUÁRIO:\n{user_message}"
+        response = chat.send_message(prompt_with_context)
         
         return jsonify({"reply": response.text}), 200
 

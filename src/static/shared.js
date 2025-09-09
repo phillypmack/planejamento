@@ -86,39 +86,41 @@ function displayActivePlanBanner() {
 
 // --- AI Chat Functions (Global) ---
 
+let chatHistory = []; // Histórico da conversa com a IA
+
 /**
  * Inicializa os event listeners para o chat de IA.
  * Deve ser chamada no `initializeApp` de cada página que terá o chat.
  */
 function initializeAIChat() {
-    const aiChatIcon = document.getElementById('ai-chat-icon');
-    const aiChatCloseBtn = document.getElementById('ai-chat-close-btn');
-    const aiChatSendBtn = document.getElementById('ai-chat-send-btn');
-    const aiChatInput = document.getElementById('ai-chat-input');
+    // Configura o modal flutuante da página do assistente de IA
+    const aiIcon = document.getElementById('ai-chat-icon');
+    const aiModalCloseBtn = document.getElementById('ai-assistant-page-close-btn');
 
-    if (aiChatIcon) aiChatIcon.addEventListener('click', openAIChat);
-    if (aiChatCloseBtn) aiChatCloseBtn.addEventListener('click', closeAIChat);
-    if (aiChatSendBtn) aiChatSendBtn.addEventListener('click', sendChatMessage);
-    if (aiChatInput) aiChatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendChatMessage();
-    });
+    if (aiIcon) aiIcon.addEventListener('click', openAIAssistantPageModal);
+    if (aiModalCloseBtn) aiModalCloseBtn.addEventListener('click', closeAIAssistantPageModal);
 }
 
-function openAIChat() {
-    const modal = document.getElementById('ai-chat-modal');
-    if (!modal) return;
-    modal.classList.remove('hidden');
-    document.getElementById('ai-chat-input').focus();
-
-    const messagesContainer = document.getElementById('ai-chat-messages');
-    if (messagesContainer.children.length === 0) {
-        appendMessage('Olá! Sou seu assistente de análise. Como posso ajudar a analisar o planejamento atual?', 'ai');
+function openAIAssistantPageModal() {
+    const modal = document.getElementById('ai-assistant-page-modal');
+    const iframe = document.getElementById('ai-assistant-iframe');
+    if (modal && iframe) {
+        // Define o src apenas ao abrir para carregar/recarregar a página
+        if (iframe.src !== iframe.dataset.src) {
+            iframe.src = iframe.dataset.src;
+        }
+        modal.classList.remove('hidden');
     }
 }
 
-function closeAIChat() {
-    const modal = document.getElementById('ai-chat-modal');
-    if (modal) modal.classList.add('hidden');
+function closeAIAssistantPageModal() {
+    const modal = document.getElementById('ai-assistant-page-modal');
+    const iframe = document.getElementById('ai-assistant-iframe');
+    if (modal && iframe) {
+        modal.classList.add('hidden');
+        // Reseta o src para interromper qualquer processamento dentro do iframe e liberar memória
+        iframe.src = 'about:blank';
+    }
 }
 
 function appendMessage(message, sender) {
@@ -148,6 +150,13 @@ function appendMessage(message, sender) {
     `;
     messagesContainer.appendChild(messageDiv);
     messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Adiciona a mensagem ao histórico para manter o contexto da conversa
+    const role = isAI ? 'model' : 'user';
+    // Evita adicionar mensagens de erro ou vazias ao histórico de contexto da IA
+    if (message && !message.toLowerCase().startsWith('erro:')) {
+        chatHistory.push({ role: role, parts: [{ text: message }] });
+    }
 }
 
 function showTypingIndicator() {
@@ -187,11 +196,13 @@ async function sendChatMessage() {
     showTypingIndicator();
 
     try {
+        // O histórico enviado para a API não deve incluir a mensagem atual do usuário
+        const historyForAPI = chatHistory.slice(0, -1);
         const context = await buildSystemContext();
         const response = await fetch('/api/gantt/chat_gemini', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ message, context })
+            body: JSON.stringify({ message, context, history: historyForAPI })
         });
 
         removeTypingIndicator();
@@ -206,6 +217,10 @@ async function sendChatMessage() {
 
     } catch (error) {
         removeTypingIndicator();
+        // Remove a mensagem do usuário do histórico se a API falhar, para evitar poluir o contexto
+        if (chatHistory.length > 0 && chatHistory[chatHistory.length - 1].role === 'user') {
+            chatHistory.pop();
+        }
         appendMessage(`Erro: ${error.message}`, 'ai');
     }
 }
@@ -229,33 +244,82 @@ async function buildSystemContext() {
     const moldesOciosos = ociososData.length;
 
     // --- INÍCIO DA NOVA LÓGICA: Detalhes do Setup de Moldes por Braço ---
-    const setupByArm = progData.reduce((acc, item) => {
-        const arm = item['Braço'];
-        const mold = item['Produto'];
-        const quantity = item['Quantidade de Moldes'];
+    // --- INÍCIO DA LÓGICA DE OTIMIZAÇÃO DE SETUP (SUBSTITUI A ANÁLISE DE SETUP ANTERIOR) ---
+    let otimizacaoSetupSummaryString = "\n**Análise de Otimização de Setup (Alocação e Finalidade dos Moldes):**\n";
+    if (progData && progData.length > 0) {
+        const stockOrderIdsOtimizacao = { min: "9999997", med: "9999998", max: "9999999" };
+        const allStockIdsOtimizacao = Object.values(stockOrderIdsOtimizacao);
 
-        if (!acc[arm]) acc[arm] = {};
-        // Armazena a quantidade de moldes para cada produto em cada braço.
-        // A estrutura assume que a quantidade de moldes para um produto é constante dentro de um braço.
-        if (!acc[arm][mold]) {
-            acc[arm][mold] = quantity;
-        }
-        return acc;
-    }, {});
-
-    let setupSummaryString = "\n**Setup de Moldes por Braço (Produto e Quantidade):**\n";
-    const sortedArms = Object.keys(setupByArm).sort((a, b) => a - b);
-    if (sortedArms.length > 0) {
-        sortedArms.forEach(arm => {
-            const moldsInArm = setupByArm[arm];
-            const totalMoldsInArm = Object.values(moldsInArm).reduce((sum, qty) => sum + (qty || 0), 0);
-            setupSummaryString += `- **Braço ${arm} (Total: ${totalMoldsInArm} moldes):**\n`;
-            Object.keys(moldsInArm).sort().forEach(mold => {
-                setupSummaryString += `  - ${mold}: ${moldsInArm[mold]} molde(s)\n`;
-            });
+        // 1. Calcula a finalidade de cada molde (baseado na primeira rodada de uso)
+        const firstUseByMold = {};
+        progData.forEach(item => {
+            const mold = item.Produto;
+            const round = item["Número da Rodada"];
+            if (!firstUseByMold[mold] || round < firstUseByMold[mold].round) {
+                firstUseByMold[mold] = { round: round, order: String(item.Pedido) };
+            }
         });
+
+        let countPedidos = 0, countEstoqueMin = 0, countEstoqueMed = 0, countEstoqueMax = 0;
+        const processedMolds = new Set();
+
+        progData.forEach(item => {
+            const mold = item.Produto;
+            const round = item["Número da Rodada"];
+            const quantity = item["Quantidade de Moldes"] || 0;
+            const firstUse = firstUseByMold[mold];
+
+            if (firstUse && round === firstUse.round && !processedMolds.has(mold)) {
+                if (firstUse.order === stockOrderIdsOtimizacao.min) countEstoqueMin += quantity;
+                else if (firstUse.order === stockOrderIdsOtimizacao.med) countEstoqueMed += quantity;
+                else if (firstUse.order === stockOrderIdsOtimizacao.max) countEstoqueMax += quantity;
+                else if (!allStockIdsOtimizacao.includes(firstUse.order)) countPedidos += quantity;
+                processedMolds.add(mold);
+            }
+        });
+
+        otimizacaoSetupSummaryString += `- **Resumo de Finalidade dos Moldes:**\n`;
+        otimizacaoSetupSummaryString += `  - Moldes para Pedidos de Clientes: ${countPedidos}\n`;
+        otimizacaoSetupSummaryString += `  - Moldes para Estoque Mínimo: ${countEstoqueMin}\n`;
+        otimizacaoSetupSummaryString += `  - Moldes para Estoque Médio: ${countEstoqueMed}\n`;
+        otimizacaoSetupSummaryString += `  - Moldes para Estoque Máximo: ${countEstoqueMax}\n\n`;
+
+        // 2. Detalha a alocação por braço
+        const stockTypeMapOtimizacao = { "9999997": "Estoque Mínimo", "9999998": "Estoque Médio", "9999999": "Estoque Máximo" };
+        const setupByArmOtimizacao = progData.reduce((acc, item) => {
+            const arm = item.Braço;
+            const mold = item.Produto;
+            const order = String(item.Pedido);
+            const quantity = item["Quantidade de Moldes"];
+
+            if (!acc[arm]) acc[arm] = {};
+            if (!acc[arm][mold]) {
+                acc[arm][mold] = { producingFor: new Set(), quantity: quantity };
+            }
+            acc[arm][mold].producingFor.add(stockTypeMapOtimizacao[order] || `Pedido Cliente`);
+            acc[arm][mold].quantity = quantity;
+            return acc;
+        }, {});
+
+        otimizacaoSetupSummaryString += `- **Alocação Detalhada por Braço:**\n`;
+        const sortedArmsOtimizacao = Object.keys(setupByArmOtimizacao).sort((a, b) => a - b);
+        if (sortedArmsOtimizacao.length > 0) {
+            sortedArmsOtimizacao.forEach(arm => {
+                const moldsInArm = setupByArmOtimizacao[arm];
+                const totalMoldsInArm = Object.values(moldsInArm).reduce((sum, moldData) => sum + (moldData.quantity || 0), 0);
+                otimizacaoSetupSummaryString += `  - **Braço ${arm} (Total: ${totalMoldsInArm} moldes):**\n`;
+                Object.keys(moldsInArm).sort().forEach(mold => {
+                    const moldData = moldsInArm[mold];
+                    const producingForText = Array.from(moldData.producingFor).join(', ');
+                    otimizacaoSetupSummaryString += `    - ${mold} (Qtd: ${moldData.quantity}): produzindo para ${producingForText}\n`;
+                });
+            });
+        } else {
+            otimizacaoSetupSummaryString += "  Nenhuma alocação de molde encontrada.\n";
+        }
+
     } else {
-        setupSummaryString += "Nenhum setup de molde encontrado na programação.\n";
+        otimizacaoSetupSummaryString += "Nenhum dado de programação para analisar o setup.\n";
     }
     // --- FIM DA NOVA LÓGICA ---
 
@@ -274,6 +338,22 @@ async function buildSystemContext() {
                 if (projectionData.labels && projectionData.labels.length > 0) {
                     projectionData.labels.forEach((label, index) => {
                         projectionSummaryString += `- **Data: ${label}** | Pedidos: ${projectionData.data_quantidade[index]} | Itens: ${projectionData.data_itens[index].toLocaleString('pt-BR')} | Valor: ${projectionData.data_valor[index].toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+
+                        // Adicionar detalhes dos pedidos que compõem o valor do dia
+                        if (projectionData.detalhes_por_dia && projectionData.detalhes_por_dia[label]) {
+                            const detalhesDoDia = projectionData.detalhes_por_dia[label];
+                            // Agrupar por pedido para não repetir o valor total
+                            const pedidosDoDia = detalhesDoDia.reduce((acc, item) => {
+                                if (!acc[item.pedido]) {
+                                    acc[item.pedido] = { cliente: item.cliente, valor: item.valorPedido };
+                                }
+                                return acc;
+                            }, {});
+                            Object.keys(pedidosDoDia).forEach(pedidoId => {
+                                const pedidoInfo = pedidosDoDia[pedidoId];
+                                projectionSummaryString += `  - Pedido ${pedidoId} (${pedidoInfo.cliente}): ${pedidoInfo.valor.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}\n`;
+                            });
+                        }
                     });
                 } else {
                     projectionSummaryString += "Nenhuma projeção de finalização disponível para este planejamento.\n";
@@ -426,7 +506,7 @@ async function buildSystemContext() {
 - **Moldes Ociosos (instalados mas não usados):** ${moldesOciosos}
 ${attentionPointsSummary}
 ${delaySummaryString}
-${setupSummaryString}
+${otimizacaoSetupSummaryString}
 ${projectionSummaryString}
 ${dailySummaryString}
 Com base neste contexto, responda à pergunta do usuário de forma analítica e precisa.

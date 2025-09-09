@@ -12,6 +12,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function initializeApp() {
         setupEventListeners();
         displayActivePlanBanner();
+        initializeAIChat(); // Adiciona a inicialização do modal da IA
     }
 
     function setupEventListeners() {
