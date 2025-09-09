@@ -449,6 +449,40 @@ async function buildSystemContext() {
     }
     // --- FIM DA NOVA LÓGICA ---
 
+    // --- INÍCIO DA NOVA LÓGICA: Análise do Histórico de Atrasos ---
+    let historicalDelaySummaryString = "\n**Análise do Histórico de Atrasos (Causas Raiz):**\n";
+    try {
+        const historicalDelayResponse = await fetch('/api/gantt/historico_atrasos');
+        if (historicalDelayResponse.ok) {
+            const historicalData = await historicalDelayResponse.json();
+            const historicoAtrasos = historicalData.historico_atrasos || [];
+
+            if (historicoAtrasos.length > 0) {
+                // 1. Contar a frequência dos motivos
+                const motivosCount = historicoAtrasos.reduce((acc, item) => {
+                    const motivo = item.motivo_atraso || 'Não Atribuído';
+                    acc[motivo] = (acc[motivo] || 0) + 1;
+                    return acc;
+                }, {});
+
+                const sortedMotivos = Object.entries(motivosCount).sort((a, b) => b[1] - a[1]);
+
+                historicalDelaySummaryString += "- **Principais Motivos de Atraso (Ocorrências):**\n";
+                sortedMotivos.forEach(([motivo, count]) => {
+                    historicalDelaySummaryString += `  - ${motivo}: ${count} vez(es)\n`;
+                });
+
+            } else {
+                historicalDelaySummaryString += "Nenhum registro de atraso encontrado no histórico.\n";
+            }
+        } else {
+            historicalDelaySummaryString += "Não foi possível carregar o histórico de atrasos para análise.\n";
+        }
+    } catch (error) {
+        historicalDelaySummaryString += "Erro ao carregar o histórico de atrasos para análise.\n";
+    }
+    // --- FIM DA NOVA LÓGICA ---
+
     const dailyProduction = progData.reduce((acc, item) => {
         const date = item['Data Prevista'];
         const product = item['Produto'];
@@ -506,6 +540,7 @@ async function buildSystemContext() {
 - **Moldes Ociosos (instalados mas não usados):** ${moldesOciosos}
 ${attentionPointsSummary}
 ${delaySummaryString}
+${historicalDelaySummaryString}
 ${otimizacaoSetupSummaryString}
 ${projectionSummaryString}
 ${dailySummaryString}
