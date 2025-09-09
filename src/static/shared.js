@@ -159,6 +159,44 @@ function appendMessage(message, sender) {
     }
 }
 
+function appendSuggestions(suggestions) {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    if (!messagesContainer) return;
+
+    const suggestionsHtml = suggestions.map(q =>
+        // Sanitize question before putting it in HTML
+        `<button class="suggestion-btn bg-accent hover:bg-accent-dark text-white text-sm font-semibold py-2 px-3 rounded-lg transition-colors duration-200 text-left">
+            ${q.replace(/</g, "&lt;").replace(/>/g, "&gt;")}
+        </button>`
+    ).join('');
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex items-start gap-3';
+    messageDiv.innerHTML = `
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary-dark flex items-center justify-center">
+            <i class="fas fa-brain text-accent"></i>
+        </div>
+        <div class="text-white p-3 rounded-lg bg-gray-700 max-w-md">
+            <p class="mb-3 font-semibold">Encontrei alguns pontos que podem ser do seu interesse. Clique em uma pergunta para começar:</p>
+            <div class="flex flex-col items-start gap-2">
+                ${suggestionsHtml}
+            </div>
+        </div>
+    `;
+
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+
+    // Add event listeners to the new buttons
+    messageDiv.querySelectorAll('.suggestion-btn').forEach(btn => {
+        btn.addEventListener('click', () => {
+            const question = btn.textContent.trim();
+            document.getElementById('ai-chat-input').value = question;
+            sendChatMessage();
+        });
+    });
+}
+
 function showTypingIndicator() {
     const messagesContainer = document.getElementById('ai-chat-messages');
     if (!messagesContainer) return;

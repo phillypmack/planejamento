@@ -56,11 +56,49 @@ function setupEventListeners() {
 function initializeDedicatedAIChat() {
     const messagesContainer = document.getElementById('ai-chat-messages');
     if (messagesContainer.children.length === 0) {
-        // Limpa o histórico ao carregar a página dedicada para garantir uma sessão limpa
         chatHistory = [];
-        appendMessage('Olá! Sou seu assistente de análise. Como posso ajudar a analisar o planejamento atual?', 'ai');
+        appendMessage('Olá! Sou seu assistente de análise. Estou analisando o planejamento atual para encontrar pontos de interesse...', 'ai');
+        loadAndDisplayAISuggestions();
     }
     document.getElementById('ai-chat-input').focus();
+}
+
+async function loadAndDisplayAISuggestions() {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    if (!messagesContainer) return;
+
+    try {
+        const context = await buildSystemContext();
+        const response = await fetch('/api/gantt/chat_gemini/suggestions', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ context })
+        });
+
+        const analyzingMessage = Array.from(messagesContainer.children).pop();
+        if (analyzingMessage && analyzingMessage.innerText.includes('analisando')) {
+            analyzingMessage.remove();
+        }
+
+        if (!response.ok) {
+            console.error("Falha ao buscar sugestões da IA.");
+            appendMessage('Como posso ajudar a analisar o planejamento atual?', 'ai');
+            return;
+        }
+
+        const result = await response.json();
+        const suggestions = result.suggestions || [];
+
+        if (suggestions.length > 0) {
+            appendSuggestions(suggestions);
+        } else {
+            appendMessage('Como posso ajudar a analisar o planejamento atual?', 'ai');
+        }
+
+    } catch (error) {
+        console.error('Erro ao carregar sugestões da IA:', error);
+        appendMessage('Tive um problema ao gerar sugestões, mas você pode me perguntar o que quiser.', 'ai');
+    }
 }
 
 function toggleSidebar() {

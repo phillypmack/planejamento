@@ -1372,6 +1372,45 @@ def chat_gemini():
         print(f"Erro na API do Gemini: {e}")
         return jsonify({"error": f"Ocorreu um erro ao processar sua solicitação com a IA: {str(e)}"}), 500
 
+@gantt_bp.route("/chat_gemini/suggestions", methods=["POST"])
+def get_ai_suggestions():
+    """
+    Receives system context and asks the AI to generate conversation starter questions.
+    """
+    try:
+        data = request.get_json()
+        context = data.get("context")
+        api_key = os.getenv("GEMINI_API_KEY")
+
+        if not context:
+            return jsonify({"error": "O contexto do sistema é obrigatório."}), 400
+        if not api_key:
+            return jsonify({"error": "A chave da API do Gemini não foi configurada no servidor."}), 500
+
+        genai.configure(api_key=api_key)
+        
+        system_prompt = (
+            "Você é um analista de PCP sênior e sua tarefa é analisar o contexto de um sistema de planejamento. "
+            "Identifique os 3 pontos mais críticos ou interessantes (como grandes atrasos, muitos moldes ociosos, gargalos de produção, etc.). "
+            "Para cada ponto, formule uma pergunta clara e direta que um usuário faria para investigar o problema. "
+            "Responda APENAS com as perguntas, uma por linha. Não adicione introduções, saudações ou explicações. "
+            "Exemplo de saída:\n"
+            "Quais são os 5 principais pedidos com atraso?\n"
+            "Por que o produto X não foi planejado se há demanda?\n"
+            "Qual braço tem a maior quantidade de moldes ociosos?"
+        )
+        
+        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt)
+        
+        prompt_with_context = f"## CONTEXTO DO SISTEMA:\n{context}"
+        response = model.generate_content(prompt_with_context)
+        
+        suggestions = [s.strip() for s in response.text.split('\n') if s.strip()]
+        return jsonify({"suggestions": suggestions}), 200
+    except Exception as e:
+        print(f"Erro na API do Gemini ao gerar sugestões: {e}")
+        return jsonify({"error": f"Ocorreu um erro ao gerar sugestões com a IA: {str(e)}"}), 500
+
 @gantt_bp.route("/dashboard_kpis", methods=["GET"])
 def get_dashboard_kpis():
     """
