@@ -25,3 +25,4 @@ oracledb
 dotenv
 pymongo
 reportlab
+google-generativeai

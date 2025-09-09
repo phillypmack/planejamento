@@ -409,7 +409,22 @@
             <div class="space-y-8">
                 <!-- Gráfico de Quantidade -->
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de Pedidos Finalizados por Dia</h3>
+                    <div class="relative group inline-block">
+                        <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                            Quantidade de Pedidos Finalizados por Dia
+                            <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                        </h3>
+                        <!-- Tooltip -->
+                        <div
+                            class="absolute top-full left-0 mt-1 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold mb-1 text-base text-accent">Projeção de Pedidos Finalizados</p>
+                            <p>Mostra o número de pedidos (de clientes e para estoque) que têm sua produção totalmente
+                                concluída em cada dia.</p>
+                            <hr class="my-2 border-gray-600">
+                            <p class="text-gray-400"><strong>Fonte:</strong> Contagem de pedidos cuja última peça é
+                                produzida na data correspondente.</p>
+                        </div>
+                    </div>
                     <div id="projecao-chart-container" style="height: 400px;">
                         <canvas id="graficoProjecaoPedidos"></canvas>
                     </div>
@@ -417,7 +432,22 @@
 
                 <!-- Gráfico de Quantidade de Itens -->
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de Itens Planejados por Dia</h3>
+                    <div class="relative group inline-block">
+                        <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                            Quantidade de Itens Planejados por Dia
+                            <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                        </h3>
+                        <!-- Tooltip -->
+                        <div
+                            class="absolute top-full left-0 mt-1 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold mb-1 text-base text-accent">Projeção de Itens Planejados</p>
+                            <p>Exibe a soma de todas as unidades de produtos que estão programadas para serem produzidas
+                                em cada dia, representando o volume de produção diário.</p>
+                            <hr class="my-2 border-gray-600">
+                            <p class="text-gray-400"><strong>Fonte:</strong> Soma do campo "Quantidade Programada" de
+                                todos os itens por "Data Prevista".</p>
+                        </div>
+                    </div>
                     <div id="projecao-itens-chart-container" style="height: 400px;">
                         <canvas id="graficoProjecaoItens"></canvas>
                     </div>
@@ -425,7 +455,22 @@
 
                 <!-- Gráfico de Valor -->
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Valor Liberado por Dia (R$)</h3>
+                    <div class="relative group inline-block">
+                        <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                            Valor Liberado por Dia (R$)
+                            <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                        </h3>
+                        <!-- Tooltip -->
+                        <div
+                            class="absolute top-full left-0 mt-1 w-80 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold mb-1 text-base text-accent">Projeção de Valor Liberado</p>
+                            <p>Mostra o valor monetário total dos pedidos de clientes que são finalizados a cada dia.
+                                Ajuda a prever o faturamento.</p>
+                            <hr class="my-2 border-gray-600">
+                            <p class="text-gray-400"><strong>Fonte:</strong> Soma do "VLRNOTA" (do Sankhya) dos pedidos
+                                de clientes finalizados na data.</p>
+                        </div>
+                    </div>
                     <div id="projecao-valor-chart-container" style="height: 400px;">
                         <canvas id="graficoProjecaoValor"></canvas>
                     </div>

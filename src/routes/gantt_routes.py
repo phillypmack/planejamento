@@ -15,6 +15,7 @@ from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib import colors
 from collections import Counter
 from ..models.sankhya_model import db as sankhya_db, ProgramacaoItem
+import google.generativeai as genai
 
 # Garante que o .env na raiz do projeto seja carregado,
 # independentemente de onde o script é executado.
@@ -1322,6 +1323,43 @@ def get_detalhes_pedido(pedido_id):
 
     except Exception as e:
         return jsonify({"error": f"Erro ao buscar detalhes do pedido {pedido_id}: {str(e)}"}), 500
+
+@gantt_bp.route("/chat_gemini", methods=["POST"])
+def chat_gemini():
+    """
+    Recebe uma mensagem e um contexto, envia para a API do Gemini e retorna a resposta.
+    """
+    try:
+        data = request.get_json()
+        user_message = data.get("message")
+        context = data.get("context")
+        api_key = os.getenv("GEMINI_API_KEY")
+
+        if not user_message:
+            return jsonify({"error": "A mensagem do usuário é obrigatória."}), 400
+        if not api_key:
+            return jsonify({"error": "A chave da API do Gemini não foi configurada no servidor."}), 500
+
+        genai.configure(api_key=api_key)
+        model = genai.GenerativeModel('gemini-2.5-flash')
+
+        system_prompt = (
+            "Você é um assistente especialista em PCP (Planejamento e Controle da Produção) e deve se comportar como um analista sênior. "
+            "Não se refira a si mesmo como um analista de pcp senior isso soa prepotente"
+            "Sua tarefa é analisar os dados de um sistema de planejamento e responder às perguntas do usuário de forma clara, objetiva e baseada **exclusivamente** nos dados fornecidos no contexto. "
+            "Não invente informações. Se a resposta não estiver no contexto, afirme que os dados fornecidos não contêm essa informação. "
+            "Use os dados do contexto para embasar suas respostas. Seja direto e informativo."
+        )
+        
+        full_prompt = f"{system_prompt}\n\n--- CONTEXTO DO SISTEMA ---\n{context}\n\n--- PERGUNTA DO USUÁRIO ---\n{user_message}\n\n--- SUA ANÁLISE ---"
+
+        response = model.generate_content(full_prompt)
+        
+        return jsonify({"reply": response.text}), 200
+
+    except Exception as e:
+        print(f"Erro na API do Gemini: {e}")
+        return jsonify({"error": f"Ocorreu um erro ao processar sua solicitação com a IA: {str(e)}"}), 500
 
 @gantt_bp.route("/dashboard_kpis", methods=["GET"])
 def get_dashboard_kpis():

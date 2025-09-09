@@ -44,6 +44,8 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('pedido-search-btn').addEventListener('click', consultarPedido);
 
         // Enviar para Sankhya
+        // AI Chat (agora inicializado a partir do shared.js)
+        initializeAIChat();
     }
 
     function showSection(sectionName) {

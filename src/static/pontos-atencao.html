@@ -283,6 +283,25 @@
             background-color: var(--color-bg-dark) !important;
         }
 
+        /* Custom Scrollbar for AI Chat */
+        #ai-chat-messages::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-track {
+            background: var(--color-bg-light);
+            border-radius: 10px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-thumb {
+            background-color: var(--color-accent);
+            border-radius: 10px;
+        }
+
+        #ai-chat-messages::-webkit-scrollbar-thumb:hover {
+            background-color: var(--color-accent-dark);
+        }
+
         /* Top Loading Bar */
         #top-loading-bar {
             background-color: rgba(46, 204, 113, 0.2);
@@ -310,6 +329,39 @@
 </head>
 
 <body class="font-sans">
+    <!-- IA Icon -->
+    <img src="inteligencia-artificial.gif" alt="Ícone de Inteligência Artificial" id="ai-chat-icon"
+        class="fixed top-5 right-5 w-16 h-16 z-50 opacity-75 hover:opacity-100 transition-opacity duration-300 cursor-pointer mix-blend-screen drop-shadow-2xl">
+
+    <!-- AI Chat Modal -->
+    <div id="ai-chat-modal" class="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center hidden">
+        <div
+            class="bg-primary-light rounded-lg shadow-xl w-full max-w-2xl max-h-[80vh] grid grid-rows-[auto_1fr_auto] overflow-hidden">
+            <!-- Header -->
+            <div class="flex justify-between items-center border-b border-gray-700 p-4">
+                <h3 class="text-lg font-semibold text-accent flex items-center">
+                    <i class="fas fa-brain mr-3"></i>
+                    Assistente de Análise (Gemini)
+                </h3>
+                <button id="ai-chat-close-btn" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times text-xl"></i>
+                </button>
+            </div>
+            <!-- Messages -->
+            <div id="ai-chat-messages" class="overflow-y-auto p-4 space-y-4">
+                <!-- Chat messages will be appended here -->
+            </div>
+            <!-- Input -->
+            <div class="border-t border-gray-700 p-4 flex items-center space-x-2">
+                <input type="text" id="ai-chat-input" placeholder="Pergunte sobre o planejamento atual..."
+                    class="flex-grow bg-primary-dark text-black px-4 py-2 rounded-lg focus:outline-none focus:ring-2 focus:ring-accent">
+                <button id="ai-chat-send-btn"
+                    class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg">
+                    <i class="fas fa-paper-plane"></i>
+                </button>
+            </div>
+        </div>
+    </div>
     <!-- Sidebar -->
     <div id="sidebar" class="sidebar fixed left-0 top-0 h-full w-64 shadow-lg z-40">
         <div class="p-6">

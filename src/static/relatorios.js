@@ -5,6 +5,7 @@ document.addEventListener("DOMContentLoaded", () => {
     function initializeApp() {
         setupEventListeners();
         displayActivePlanBanner();
+        initializeAIChat(); // Adiciona a inicialização do chat de IA
         loadHistoricoParaRelatorios();
     }
 

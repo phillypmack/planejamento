@@ -2,6 +2,8 @@ document.addEventListener("DOMContentLoaded", () => {
     // Global variables
     let dadosOriginais = null;
     const chartInstances = {}; // To hold chart instances and prevent memory leaks
+    let selectedProduct = null; // To hold the currently selected product for filtering
+    let selectedDate = null; // To hold the currently selected date for filtering
 
     // Initialize the application
     initializeApp();
@@ -53,6 +55,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     async function loadAndRenderCharts(forceReload = false) {
         showLoading();
+        selectedDate = null; // Reset date filter on any data reload
+        selectedProduct = null; // Reset filter on any data reload
         if (forceReload) {
             sessionStorage.removeItem('analisesGraficasCache');
         }
@@ -73,8 +77,8 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function renderAllCharts(programacaoData) {
         createTotalEvolutionChart(programacaoData);
-        createProductChart(programacaoData);
-        createEvolutionChart(programacaoData);
+        createProductChart(programacaoData); // Will use global state
+        createEvolutionChart(programacaoData); // Will use global state
         createBranchChart(programacaoData);
         createMoldChart(programacaoData);
     }
@@ -133,7 +137,10 @@ document.addEventListener("DOMContentLoaded", () => {
                                 const labelEstoque = `Para Estoque: ${percentualEstoque.replace('.', ',')}% (${estoque.toLocaleString('pt-BR')})`;
 
                                 return [labelTotal, labelEstoque];
-                            }
+                            },
+                            footer: function (tooltipItems) {
+                                return 'Fonte %: (Qtd. Estoque / Qtd. Total)';
+                            },
                         }
                     }
                 },
@@ -145,14 +152,49 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createProductChart(data) {
+    function createProductChart(fullData) {
         destroyChart('graficoProdutos');
-        const ctx = document.getElementById('graficoProdutos').getContext('2d');
+        const container = document.getElementById('grafico-produtos-container');
+        const canvas = document.getElementById('graficoProdutos');
+        const ctx = canvas.getContext('2d');
 
-        const produtos = [...new Set(data.map(item => item.Produto))];
-        const quantidades = produtos.map(produto =>
-            data.filter(item => item.Produto === produto)
-                .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
+        // Filter data if a date is selected
+        const dataForChart = selectedDate ? fullData.filter(item => item["Data Prevista"] === selectedDate) : fullData;
+
+        // Update chart title
+        const titleElement = container.previousElementSibling.querySelector('.chart-title-text');
+        if (titleElement) {
+            titleElement.textContent = selectedDate
+                ? `Itens planejados para: ${selectedDate}`
+                : 'Quantidade de itens planejados';
+        }
+
+        // Aggregate and sort data
+        const productQuantities = dataForChart.reduce((acc, item) => {
+            const product = item.Produto;
+            const quantity = item["Quantidade Programada"];
+            acc[product] = (acc[product] || 0) + quantity;
+            return acc;
+        }, {});
+
+        const sortedProducts = Object.entries(productQuantities)
+            .map(([produto, quantidade]) => ({ produto, quantidade }))
+            .sort((a, b) => b.quantidade - a.quantidade); // Sort descending for horizontal chart
+
+        const produtos = sortedProducts.map(d => d.produto);
+        const quantidades = sortedProducts.map(d => d.quantidade);
+
+        // Dynamic Height Calculation
+        const barHeight = 25; // pixels per bar
+        const chartPadding = 80; // pixels for top/bottom padding and axes
+        container.style.height = `${Math.max(400, (produtos.length * barHeight) + chartPadding)}px`;
+
+        // Highlight the selected product
+        const backgroundColors = produtos.map(p =>
+            p === selectedProduct && !selectedDate ? 'rgba(241, 196, 15, 0.9)' : 'rgba(52, 152, 219, 0.7)' // Only highlight if not in date-filter mode
+        );
+        const borderColors = produtos.map(p =>
+            p === selectedProduct && !selectedDate ? 'rgba(241, 196, 15, 1)' : 'rgba(52, 152, 219, 1)'
         );
 
         chartInstances['graficoProdutos'] = new Chart(ctx, {
@@ -162,14 +204,31 @@ document.addEventListener("DOMContentLoaded", () => {
                 datasets: [{
                     label: 'Quantidade Programada',
                     data: quantidades,
-                    backgroundColor: 'rgba(52, 152, 219, 0.7)',
-                    borderColor: 'rgba(52, 152, 219, 1)',
+                    backgroundColor: backgroundColors,
+                    borderColor: borderColors,
                     borderWidth: 1
                 }]
             },
             options: {
-                responsive: true, maintainAspectRatio: false,
+                indexAxis: 'y', // Make it horizontal
+                responsive: true,
+                maintainAspectRatio: false,
                 plugins: { legend: { display: false } },
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const clickedIndex = elements[0].index;
+                        const clickedProduct = produtos[clickedIndex];
+
+                        // Toggle selection: if same product is clicked, deselect. Otherwise, select new one.
+                        // When a product is selected, clear the date filter.
+                        selectedProduct = (selectedProduct === clickedProduct) ? null : clickedProduct;
+                        selectedDate = null;
+
+                        // Re-render this chart to update colors and the evolution chart to filter data
+                        createProductChart(fullData); // Will use the new selectedProduct state
+                        createEvolutionChart(fullData); // Will use the new selectedProduct state
+                    }
+                },
                 scales: {
                     y: { beginAtZero: true, ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },
                     x: { ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } }
@@ -178,12 +237,23 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createEvolutionChart(data) {
+    function createEvolutionChart(data) { // The function now implicitly uses selectedProduct
         destroyChart('graficoEvolucao');
         const ctx = document.getElementById('graficoEvolucao').getContext('2d');
         const stockOrderIds = ["9999997", "9999998", "9999999"];
 
-        const datas = [...new Set(data.map(item => item["Data Prevista"]))].sort((a, b) => {
+        // Filter data if a product is selected
+        const filteredData = selectedProduct ? data.filter(item => item.Produto === selectedProduct) : data;
+
+        // Update chart title to reflect the filter
+        const titleElement = document.querySelector('#grafico-evolucao-container').previousElementSibling.querySelector('.chart-title-text');
+        if (titleElement) {
+            titleElement.textContent = selectedProduct
+                ? `Evolução por tipo para: ${selectedProduct}`
+                : 'Evolução por tipo';
+        }
+
+        const datas = [...new Set(filteredData.map(item => item["Data Prevista"]))].sort((a, b) => {
             const partsA = a.split('/');
             const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
             const partsB = b.split('/');
@@ -191,8 +261,14 @@ document.addEventListener("DOMContentLoaded", () => {
             return dateA - dateB;
         });
 
-        const quantidadesPedido = datas.map(d => data.filter(item => item["Data Prevista"] === d && !stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
-        const quantidadesEstoque = datas.map(d => data.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesPedido = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d && !stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesEstoque = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+
+        // Lógica de destaque para o ponto selecionado
+        const pointRadii = datas.map(d => d === selectedDate ? 7 : 3);
+        const pointBorderWidths = datas.map(d => d === selectedDate ? 3 : 1);
+        const pointBorderColorsPedido = datas.map(d => d === selectedDate ? 'rgba(255, 255, 255, 1)' : 'rgba(241, 196, 15, 1)');
+        const pointBorderColorsEstoque = datas.map(d => d === selectedDate ? 'rgba(255, 255, 255, 1)' : 'rgba(46, 204, 113, 1)');
 
         chartInstances['graficoEvolucao'] = new Chart(ctx, {
             type: 'line',
@@ -203,17 +279,39 @@ document.addEventListener("DOMContentLoaded", () => {
                     data: quantidadesPedido,
                     borderColor: 'rgba(241, 196, 15, 1)',
                     backgroundColor: 'rgba(241, 196, 15, 0.2)',
-                    tension: 0.4, fill: true
+                    tension: 0.4, fill: true,
+                    pointRadius: pointRadii,
+                    pointBorderWidth: pointBorderWidths,
+                    pointBorderColor: pointBorderColorsPedido,
+                    pointHoverRadius: 8
                 }, {
                     label: 'Quantidade para Estoque',
                     data: quantidadesEstoque,
                     borderColor: 'rgba(46, 204, 113, 1)',
                     backgroundColor: 'rgba(46, 204, 113, 0.2)',
-                    tension: 0.4, fill: true
+                    tension: 0.4, fill: true,
+                    pointRadius: pointRadii,
+                    pointBorderWidth: pointBorderWidths,
+                    pointBorderColor: pointBorderColorsEstoque,
+                    pointHoverRadius: 8
                 }]
             },
             options: {
                 responsive: true, maintainAspectRatio: false,
+                onClick: (event, elements) => {
+                    if (elements.length > 0) {
+                        const clickedIndex = elements[0].index;
+                        const clickedDate = datas[clickedIndex];
+
+                        // Toggle date selection and clear product selection
+                        selectedDate = (selectedDate === clickedDate) ? null : clickedDate;
+                        selectedProduct = null;
+
+                        // Re-render both charts with the new state
+                        createProductChart(data);
+                        createEvolutionChart(data);
+                    }
+                },
                 plugins: { legend: { labels: { color: 'white' } } },
                 scales: {
                     y: { beginAtZero: true, ticks: { color: 'white' }, grid: { color: 'rgba(255, 255, 255, 0.1)' } },

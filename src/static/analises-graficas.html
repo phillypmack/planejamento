@@ -399,42 +399,116 @@
 
             <!-- New Total Evolution Chart -->
             <div class="bg-primary-light rounded-lg p-6 mb-8">
-                <h3 class="text-xl font-semibold text-accent mb-4">Evolução da Quantidade Total Programada por Data</h3>
+                <div class="relative group inline-block">
+                    <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                        Evolução da Quantidade Total Programada por Data
+                        <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                    </h3>
+                    <!-- Tooltip -->
+                    <div
+                        class="absolute top-full left-0 mt-1 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                        <p class="font-bold mb-1 text-base text-accent">Evolução Total</p>
+                        <p>Mostra a quantidade total de itens (para estoque e pedidos) programados para cada dia. As
+                            etiquetas no gráfico exibem o total diário, e o tooltip detalha a porcentagem destinada ao
+                            estoque.</p>
+                        <hr class="my-2 border-gray-600">
+                        <p class="text-gray-400"><strong>Fonte:</strong> Soma de "Quantidade Programada" por dia.</p>
+                    </div>
+                </div>
                 <div id="grafico-evolucao-total-container" style="height: 400px;">
                     <canvas id="graficoEvolucaoTotal"></canvas>
                 </div>
             </div>
 
-            <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div id="charts-container" class="grid grid-cols-1 lg:grid-cols-2 gap-8 items-start">
                 <!-- Gráfico de Quantidade por Produto -->
                 <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Quantidade de itens planejados</h3>
+                    <div class="relative group inline-block">
+                        <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                            <span class="chart-title-text">Quantidade de itens planejados</span>
+                            <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                        </h3>
+                        <!-- Tooltip -->
+                        <div
+                            class="absolute top-full left-0 mt-1 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                            <p class="font-bold mb-1 text-base text-accent">Itens Planejados</p>
+                            <p>Exibe a quantidade total planejada para cada produto (SKU), ordenado do maior para o
+                                menor.
+                                O gráfico se ajusta dinamicamente à quantidade de produtos.</p>
+                            <hr class="my-2 border-gray-600">
+                            <p class="text-gray-400"><strong>Interativo:</strong> Clique em uma barra para filtrar o
+                                gráfico "Evolução por tipo" por aquele produto.</p>
+                        </div>
+                    </div>
                     <div id="grafico-produtos-container" style="height: 400px;">
                         <canvas id="graficoProdutos"></canvas>
                     </div>
                 </div>
 
-                <!-- Gráfico de Evolução por Data -->
-                <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Evolução por tipo</h3>
-                    <div id="grafico-evolucao-container" style="height: 400px;">
-                        <canvas id="graficoEvolucao"></canvas>
+                <!-- Coluna da Direita com os outros 3 gráficos -->
+                <div class="space-y-8">
+                    <!-- Gráfico de Evolução por Data -->
+                    <div class="bg-primary-light rounded-lg p-6">
+                        <div class="relative group inline-block">
+                            <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                                <span class="chart-title-text">Evolução por tipo</span>
+                                <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                            </h3>
+                            <!-- Tooltip -->
+                            <div
+                                class="absolute top-full left-0 mt-1 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                                <p class="font-bold mb-1 text-base text-accent">Evolução por Tipo</p>
+                                <p>Mostra a evolução diária da produção, separando as quantidades destinadas a
+                                    <strong>pedidos de clientes</strong> e para <strong>reposição de estoque</strong>.
+                                </p>
+                                <hr class="my-2 border-gray-600">
+                                <p class="text-gray-400"><strong>Interativo:</strong> Clique em um ponto (data) para
+                                    filtrar o gráfico "Quantidade de itens planejados" por aquela data.</p>
+                            </div>
+                        </div>
+                        <div id="grafico-evolucao-container" style="height: 400px;">
+                            <canvas id="graficoEvolucao"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Gráfico de Moldes por Braço -->
-                <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Moldes por Braço</h3>
-                    <div id="grafico-moldes-braco-container" style="height: 400px;">
-                        <canvas id="graficoMoldesPorBraco"></canvas>
+                    <!-- Gráfico de Moldes por Braço -->
+                    <div class="bg-primary-light rounded-lg p-6">
+                        <div class="relative group inline-block">
+                            <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                                Moldes por Braço
+                                <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                            </h3>
+                            <!-- Tooltip -->
+                            <div
+                                class="absolute top-full left-0 mt-1 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                                <p class="font-bold mb-1 text-base text-accent">Moldes por Braço</p>
+                                <p>Exibe a quantidade total de moldes (ferramentas) alocados em cada braço durante o
+                                    planejamento. Ajuda a visualizar a distribuição do ferramental.</p>
+                            </div>
+                        </div>
+                        <div id="grafico-moldes-braco-container" style="height: 400px;">
+                            <canvas id="graficoMoldesPorBraco"></canvas>
+                        </div>
                     </div>
-                </div>
 
-                <!-- Gráfico de Distribuição por Braço -->
-                <div class="bg-primary-light rounded-lg p-6">
-                    <h3 class="text-xl font-semibold text-accent mb-4">Distribuição de Itens por Braço</h3>
-                    <div id="grafico-bracos-container" style="height: 400px;">
-                        <canvas id="graficoBracos"></canvas>
+                    <!-- Gráfico de Distribuição por Braço -->
+                    <div class="bg-primary-light rounded-lg p-6">
+                        <div class="relative group inline-block">
+                            <h3 class="text-xl font-semibold text-accent mb-4 flex items-center">
+                                Distribuição de Itens por Braço
+                                <i class="fas fa-info-circle ml-2 text-xs cursor-help"></i>
+                            </h3>
+                            <!-- Tooltip -->
+                            <div
+                                class="absolute top-full left-0 mt-1 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-300 pointer-events-none z-10">
+                                <p class="font-bold mb-1 text-base text-accent">Distribuição por Braço</p>
+                                <p>Mostra a participação de cada braço na produção total, somando a quantidade de todos
+                                    os itens produzidos. Ajuda a identificar os braços com maior volume de produção.</p>
+                            </div>
+                        </div>
+                        <div id="grafico-bracos-container" style="height: 400px;">
+                            <canvas id="graficoBracos"></canvas>
+                        </div>
                     </div>
                 </div>
             </div>
