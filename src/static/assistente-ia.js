@@ -86,13 +86,22 @@ async function loadAndDisplayAISuggestions() {
             return;
         }
 
-        const result = await response.json();
-        const suggestions = result.suggestions || [];
+        const result = await response.json(); // A API agora retorna JSON diretamente
 
-        if (suggestions.length > 0) {
-            appendSuggestions(suggestions);
+        const questions = result.questions || [];
+        const optimizations = result.optimizations || [];
+
+        if (optimizations.length > 0) {
+            optimizations.forEach(opt => appendOptimizationSuggestion(opt));
+        }
+
+        if (questions.length > 0) {
+            appendSuggestions(questions);
         } else {
-            appendMessage('Como posso ajudar a analisar o planejamento atual?', 'ai');
+            // Se não houver nem otimizações nem perguntas, mostra a mensagem padrão
+            if (optimizations.length === 0) {
+                appendMessage('Como posso ajudar a analisar o planejamento atual?', 'ai');
+            }
         }
 
     } catch (error) {

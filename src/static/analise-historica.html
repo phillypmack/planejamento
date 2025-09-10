@@ -418,13 +418,20 @@
             </div>
 
             <div class="bg-primary-light rounded-lg p-6">
-                <div class="flex justify-between items-center mb-4">
+                <div class="flex flex-wrap justify-between items-center mb-4 gap-4">
                     <h3 class="text-xl font-semibold">Histórico de Programações</h3>
-                    <button id="comparar-btn"
-                        class="bg-accent hover:bg-accent-dark text-white px-4 py-2 rounded-lg opacity-50 cursor-not-allowed"
-                        disabled>
-                        Comparar Selecionadas
-                    </button>
+                    <div class="flex items-center space-x-2">
+                        <button id="recarregar-historico-btn"
+                            class="bg-gray-600 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded-lg flex items-center"
+                            title="Recarregar lista de histórico">
+                            <i class="fas fa-sync-alt"></i>
+                        </button>
+                        <button id="comparar-btn"
+                            class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg opacity-50 cursor-not-allowed"
+                            disabled>
+                            Comparar Selecionadas
+                        </button>
+                    </div>
                 </div>
                 <div id="historico-lista" class="space-y-3">
                     <p class="text-secondary">Carregando histórico...</p>
@@ -488,7 +495,7 @@
             <div class="flex justify-between items-center border-b border-gray-700 p-4 flex-shrink-0">
                 <h3 class="text-lg font-semibold text-accent flex items-center">
                     <i class="fas fa-brain mr-3"></i>
-                    Assistente de Análise (Gemini)
+                    Assistente de Análise.
                 </h3>
                 <button id="ai-assistant-page-close-btn" class="text-gray-400 hover:text-white">
                     <i class="fas fa-times text-2xl"></i>

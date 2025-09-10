@@ -11,8 +11,11 @@ import logging
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 from sqlalchemy.exc import SQLAlchemyError
+import pytz
 
 load_dotenv()
+
+BR_TZ = pytz.timezone('America/Sao_Paulo')
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -224,6 +227,12 @@ def gerar_programacao_route():
             return jsonify({"error": f"Nenhum dado encontrado para o braço selecionado: {braco_selecionado}"}), 400
         logger.info(f"Encontrados {len(bracos_moldes)} registros de moldes para os braços selecionados.")
 
+        # Inicializa todas as listas de resultados no início do bloco try para garantir que sempre existam.
+        inventario_moldes_list = []
+        rodadas_resultado = []
+        moldes_ociosos_list = []
+        necessidade_sem_moldes_list = []
+
         # Criar um mapa de CODGRUPOPROD para QTDMOL para consulta rápida.
         # Usamos groupby().sum() para agregar corretamente a quantidade de moldes
         # caso um mesmo produto esteja configurado em mais de um braço.
@@ -242,18 +251,14 @@ def gerar_programacao_route():
         faltas_ordenadas["Quantidade Programada"] = 0
         logger.info("DataFrame 'faltas_df' copiado e preparado para ordenação e programação.")
         logger.info(f"Total de {len(faltas_ordenadas)} itens de falta a serem programados.")
-
-        rodadas_resultado = []
-        moldes_ociosos_list = []
-        necessidade_sem_moldes_list = []
         
         # Usa a data de início fornecida pelo usuário, ou a data atual como padrão.
         # Isso garante que o planejamento comece a partir da data correta.
         if data_inicio_str:
-            data_inicial = datetime.strptime(data_inicio_str, "%Y-%m-%d")
+            data_inicial = datetime.strptime(data_inicio_str, "%Y-%m-%d").replace(tzinfo=BR_TZ)
             logger.info(f"Data de início da programação definida pelo usuário: {data_inicial.strftime('%Y-%m-%d')}")
         else:
-            data_inicial = datetime.now()
+            data_inicial = datetime.now(BR_TZ)
             logger.info(f"Data de início da programação não fornecida, usando data atual: {data_inicial.strftime('%Y-%m-%d')}")
 
         capacidade_total_por_braco = {}
@@ -472,7 +477,7 @@ def gerar_programacao_route():
         logger.info("Gerando arquivos de saída Excel.")
         output_dir = "/tmp/programacao_output"
         os.makedirs(output_dir, exist_ok=True)
-        timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+        timestamp = datetime.now(BR_TZ).strftime("%Y%m%d_%H%M%S")
         prog_filename = f"programacao_gerada_{timestamp}.xlsx"
         ociosos_filename = f"moldes_ociosos_{timestamp}.xlsx"
         necessidade_filename = f"necessidade_sem_moldes_{timestamp}.xlsx"
@@ -502,7 +507,7 @@ def gerar_programacao_route():
         # Save program result to MongoDB
         try:
             program_result_doc = {
-                "timestamp": datetime.now(),
+                "timestamp": datetime.now(BR_TZ),
                 # Salva os parâmetros de configuração para rastreabilidade
                 "braco_selecionado": braco_selecionado,
                 "dias_programacao": max_dias,
@@ -510,6 +515,7 @@ def gerar_programacao_route():
                 "data_inicio": data_inicio_str,
                 "priorizacao_pedidos": priorizacao_pedidos_str,
                 "programacao_data": programacao_final_df.to_dict(orient="records") if not programacao_final_df.empty else [],
+                "inventario_moldes_data": inventario_moldes_list,
                 "moldes_ociosos_data": moldes_ociosos_df.to_dict(orient="records") if not moldes_ociosos_df.empty else [],
                 "necessidade_sem_moldes_data": necessidade_sem_moldes_df.to_dict(orient="records") if not necessidade_sem_moldes_df.empty else [],
                 "programacao_gerada_url": f"/api/programacao/download/{prog_filename}",
@@ -526,6 +532,7 @@ def gerar_programacao_route():
         return jsonify({
             "message": "Programação gerada com sucesso!",
             "programacao_gerada_url": f"/api/programacao/download/{prog_filename}",
+            "inventario_moldes_data": inventario_moldes_list,
             "moldes_ociosos_url": f"/api/programacao/download/{ociosos_filename}",
             "necessidade_sem_moldes_url": f"/api/programacao/download/{necessidade_filename}",
             "programacao_data": programacao_final_df.to_dict(orient="records") if not programacao_final_df.empty else [],
@@ -569,7 +576,7 @@ def salvar_programacao():
             return jsonify({"error": "Dados de programação não fornecidos"}), 400
 
         # Add a timestamp to the data
-        dados["timestamp"] = datetime.now()
+        dados["timestamp"] = datetime.now(BR_TZ)
         logger.info("Salvando programação no MongoDB. Dados com timestamp adicionado.")
 
         # Insert the data into the collection
@@ -714,7 +721,7 @@ def enviar_sankhya():
                 for i, item in enumerate(dados_filtrados):
                     try:
                         data_prevista = datetime.strptime(item['Data Prevista'], '%d/%m/%Y').date()
-                        data_inclusao = datetime.now()
+                        data_inclusao = datetime.now(BR_TZ)
                         
                         insert_data = {
                             'nuplan': next_nuplan + i,

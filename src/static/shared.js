@@ -197,6 +197,26 @@ function appendSuggestions(suggestions) {
     });
 }
 
+function appendOptimizationSuggestion(suggestion) {
+    const messagesContainer = document.getElementById('ai-chat-messages');
+    if (!messagesContainer) return;
+
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex items-start gap-3';
+    messageDiv.innerHTML = `
+        <div class="flex-shrink-0 w-8 h-8 rounded-full bg-primary-dark flex items-center justify-center">
+            <i class="fas fa-lightbulb text-yellow-400"></i>
+        </div>
+        <div class="text-white p-3 rounded-lg bg-gray-700 max-w-md">
+            <p class="mb-2 font-semibold text-yellow-400">${suggestion.title.replace(/</g, "&lt;")}</p>
+            <p class="text-sm">${suggestion.description.replace(/</g, "&lt;")}</p>
+        </div>
+    `;
+
+    messagesContainer.appendChild(messageDiv);
+    messagesContainer.scrollTop = messagesContainer.scrollHeight;
+}
+
 function showTypingIndicator() {
     const messagesContainer = document.getElementById('ai-chat-messages');
     if (!messagesContainer) return;
@@ -273,6 +293,7 @@ async function buildSystemContext() {
     const stockOrderIds = ["9999997", "9999998", "9999999"];
     const progData = planningData.programacao_data || [];
     const ociososData = planningData.moldes_ociosos_data || [];
+    const inventarioData = planningData.inventario_moldes_data || [];
     const necessidadeData = planningData.necessidade_sem_moldes_data || [];
 
     const totalPedidos = progData.length > 0 ? new Set(progData.map(p => p.Pedido)).size : 0;
@@ -361,6 +382,17 @@ async function buildSystemContext() {
     }
     // --- FIM DA NOVA LÓGICA ---
 
+    // --- INÍCIO DA NOVA LÓGICA: Inventário de Moldes ---
+    let inventorySummaryString = "\n**Inventário de Moldes (Cadastrados vs. Instalados):**\n";
+    if (inventarioData.length > 0) {
+        inventarioData.sort((a, b) => a.Produto.localeCompare(b.Produto)).forEach(item => {
+            inventorySummaryString += `- ${item.Produto}: ${item.Cadastrados} cadastrado(s), ${item.Instalados} instalado(s).\n`;
+        });
+    } else {
+        inventorySummaryString += "Nenhuma informação de inventário de moldes disponível (verifique o cadastro de moldes).\n";
+    }
+    // --- FIM DA NOVA LÓGICA ---
+
     // --- INÍCIO DA NOVA LÓGICA: Projeção de Finalização de Pedidos ---
     let projectionSummaryString = "\n**Projeção de Finalização de Pedidos (Diário):**\n";
     try {
@@ -437,7 +469,7 @@ async function buildSystemContext() {
         Object.keys(groupedDemand).sort().forEach(product => {
             const details = groupedDemand[product];
             const orderText = stockOrderIds.includes(String(Array.from(details.orders)[0])) ? 'Estoque' : `Pedido(s) ${Array.from(details.orders).join(', ')}`;
-            attentionPointsSummary += `  - ${product}: Faltam ${details.quantity.toLocaleString('pt-BR')} unidades (${orderText})\n`;
+            attentionPointsSummary += `  - ${product}: Faltam ${details.quantity.toLocaleString('pt-BR')} unidades (${orderText}).\n`;
         });
     } else {
         attentionPointsSummary += "- **Demanda Não Atendida:** Nenhuma demanda não atendida (com moldes cadastrados) encontrada.\n";
@@ -578,6 +610,7 @@ async function buildSystemContext() {
 - **Moldes Ociosos (instalados mas não usados):** ${moldesOciosos}
 ${attentionPointsSummary}
 ${delaySummaryString}
+${inventorySummaryString}
 ${historicalDelaySummaryString}
 ${otimizacaoSetupSummaryString}
 ${projectionSummaryString}

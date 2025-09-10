@@ -36,6 +36,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
         // Compare history
         document.getElementById('comparar-btn').addEventListener('click', compararProgramacoes);
+
+        // Reload history button
+        document.getElementById('recarregar-historico-btn').addEventListener('click', () => loadHistorico(true));
     }
 
     // Initial data load on page view
@@ -97,6 +100,7 @@ document.addEventListener("DOMContentLoaded", () => {
             }
         }
 
+        showLoading();
         console.log("Buscando histórico de programações do servidor.");
         try {
             const response = await fetch('/api/programacao/obter_historico');
@@ -111,6 +115,8 @@ document.addEventListener("DOMContentLoaded", () => {
         } catch (error) {
             console.error('Erro ao carregar histórico:', error);
             document.getElementById('historico-lista').innerHTML = '<p class="text-red-400">Erro ao carregar histórico</p>';
+        } finally {
+            hideLoading();
         }
     }
 
@@ -280,11 +286,11 @@ document.addEventListener("DOMContentLoaded", () => {
     }
 
     function showLoading() {
-        document.getElementById('loading-layer').classList.remove('hidden');
+        document.getElementById('top-loading-bar').classList.remove('hidden');
     }
 
     function hideLoading() {
-        document.getElementById('loading-layer').classList.add('hidden');
+        document.getElementById('top-loading-bar').classList.add('hidden');
     }
 
     window.carregarProgramacaoHistorico = async function (id, description) {

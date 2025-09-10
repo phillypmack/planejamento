@@ -14,13 +14,17 @@ from reportlab.lib.styles import getSampleStyleSheet, ParagraphStyle
 from reportlab.lib.enums import TA_CENTER, TA_LEFT, TA_RIGHT
 from reportlab.lib import colors
 from collections import Counter
+import json
 from ..models.sankhya_model import db as sankhya_db, ProgramacaoItem
 import google.generativeai as genai
+import pytz
 
 # Garante que o .env na raiz do projeto seja carregado,
 # independentemente de onde o script é executado.
 env_path = Path(__file__).resolve().parents[2] / '.env'
 load_dotenv(dotenv_path=env_path)
+
+BR_TZ = pytz.timezone('America/Sao_Paulo')
 
 # MongoDB Connection
 MONGO_URI = os.getenv("MONGO_URI")
@@ -815,7 +819,7 @@ def gantt_comparacao_atrasos():
         # Salvar histórico de atrasos no banco
         if table_data:
             atrasos_para_salvar = []
-            timestamp_analise = datetime.now()
+            timestamp_analise = datetime.now(BR_TZ)
             prog_recente_id = prog_recente.get("_id")
             prog_anterior_id = prog_anterior.get("_id")
 
@@ -943,7 +947,7 @@ def atribuir_motivo_atraso(atraso_id):
 
         result = atrasos_historico_collection.update_one(
             {"_id": ObjectId(atraso_id)},
-            {"$set": {"motivo_atraso": motivo, "motivo_atribuido_em": datetime.now()}}
+            {"$set": {"motivo_atraso": motivo, "motivo_atribuido_em": datetime.now(BR_TZ)}}
         )
         if result.matched_count == 1:
             return jsonify({"message": "Motivo atribuído com sucesso"}), 200
@@ -1246,7 +1250,7 @@ def salvar_planejamento_alternativo():
             return jsonify({"error": "Dados de planejamento inválidos ou ausentes."}), 400
 
         # Adiciona/atualiza o timestamp para garantir que é o mais recente
-        planejamento_data["timestamp"] = datetime.now()
+        planejamento_data["timestamp"] = datetime.now(BR_TZ)
 
         # Remove o campo _id se ele existir, pois o MongoDB irá gerar um novo
         if "_id" in planejamento_data:
@@ -1391,22 +1395,40 @@ def get_ai_suggestions():
         
         system_prompt = (
             "Você é um analista de PCP sênior e sua tarefa é analisar o contexto de um sistema de planejamento. "
-            "Identifique os 3 pontos mais críticos ou interessantes (como grandes atrasos, muitos moldes ociosos, gargalos de produção, etc.). "
-            "Para cada ponto, formule uma pergunta clara e direta que um usuário faria para investigar o problema. "
-            "Responda APENAS com as perguntas, uma por linha. Não adicione introduções, saudações ou explicações. "
-            "Exemplo de saída:\n"
-            "Quais são os 5 principais pedidos com atraso?\n"
-            "Por que o produto X não foi planejado se há demanda?\n"
-            "Qual braço tem a maior quantidade de moldes ociosos?"
+            "Sua resposta deve ser um JSON contendo duas chaves: 'questions' e 'optimizations'.\n"
+            "1. Na chave 'questions', liste 3 perguntas críticas que um usuário faria para investigar problemas (grandes atrasos, gargalos, etc.).\n"
+            "2. Na chave 'optimizations', identifique até 2 oportunidades claras de otimização. Para cada uma, forneça um objeto com 'title' e 'description'. As otimizações podem ser:\n"
+            "   a) Mover um molde ocioso para atender uma demanda não planejada (use a seção 'Moldes Ociosos' e 'Demanda Não Atendida').\n"
+            "   b) Sugerir a instalação de mais moldes de um produto que tem demanda não atendida, usando os dados da seção 'Inventário de Moldes' (Cadastrados vs. Instalados).\n"
+            "Se não houver otimizações claras, retorne uma lista vazia para 'optimizations'.\n"
+            "Exemplo de saída JSON:\n"
+            "{\n"
+            '  "questions": [\n'
+            '    "Quais são os 5 principais pedidos com atraso?",\n'
+            '    "Por que o produto X não foi planejado se há demanda?",\n'
+            '    "Qual braço tem a maior quantidade de moldes ociosos?"\n'
+            '  ],\n'
+            '  "optimizations": [\n'
+            '    {\n'
+            '      "title": "Oportunidade de Otimização de Setup",\n'
+            '      "description": "Notei que o molde MOLDE-ABC está ocioso no Braço 2. Você pode ir para a tela de Otimização de Setup e movê-lo para atender à demanda não planejada do produto PRODUTO-XYZ."\n'
+            '    },\n'
+            '    {\n'
+            '      "title": "Oportunidade de Aumento de Capacidade",\n'
+            '      "description": "O produto PRODUTO-Y tem uma demanda não atendida de 10.000 unidades. Você possui 5 moldes disponíveis, mas apenas 2 estão instalados. Considere instalar mais moldes para acelerar a produção."\n'
+            '    }\n'
+            '  ]\n'
+            '}'
         )
         
-        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt)
+        model = genai.GenerativeModel('gemini-1.5-flash', system_instruction=system_prompt, generation_config={"response_mime_type": "application/json"})
         
         prompt_with_context = f"## CONTEXTO DO SISTEMA:\n{context}"
         response = model.generate_content(prompt_with_context)
         
-        suggestions = [s.strip() for s in response.text.split('\n') if s.strip()]
-        return jsonify({"suggestions": suggestions}), 200
+        cleaned_response_text = response.text.strip().replace("```json", "").replace("```", "").strip()
+        suggestions_dict = json.loads(cleaned_response_text)
+        return jsonify(suggestions_dict), 200
     except Exception as e:
         print(f"Erro na API do Gemini ao gerar sugestões: {e}")
         return jsonify({"error": f"Ocorreu um erro ao gerar sugestões com a IA: {str(e)}"}), 500
