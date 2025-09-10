@@ -388,16 +388,30 @@
 
         <!-- Análises Gráficas Section -->
         <div id="analises-graficas-section" class="section p-8">
-            <div class="mb-8 flex justify-between items-center">
+            <div class="mb-8 flex flex-wrap justify-between items-center gap-4">
                 <div>
                     <h2 class="text-3xl font-bold text-accent mb-2">Análises Gráficas</h2>
-                    <p class="text-secondary">Visualizações gráficas do último planejamento gerado.</p>
+                    <p class="text-secondary">Visualizações gráficas do planejamento ativo.</p>
                 </div>
-                <div>
+                <div class="flex items-center space-x-4">
+                    <!-- Date Filters -->
+                    <div class="flex items-center space-x-2">
+                        <label for="start-date-filter" class="text-sm text-secondary">De:</label>
+                        <input type="date" id="start-date-filter"
+                            class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
+                            style="color-scheme: dark;">
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <label for="end-date-filter" class="text-sm text-secondary">Até:</label>
+                        <input type="date" id="end-date-filter"
+                            class="bg-primary-dark border border-gray-600 text-white text-sm rounded-lg focus:ring-blue-500 focus:border-blue-500 block w-full p-2"
+                            style="color-scheme: dark;">
+                    </div>
                     <button id="reload-data-btn"
-                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center">
+                        class="bg-accent hover:bg-accent-dark text-white font-bold py-2 px-4 rounded-lg flex items-center"
+                        title="Recarregar dados e aplicar filtros de data">
                         <i class="fas fa-sync-alt mr-2"></i>
-                        Recarregar Dados
+                        Aplicar Filtros
                     </button>
                 </div>
             </div>

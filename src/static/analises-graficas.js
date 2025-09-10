@@ -17,6 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
     function setupEventListeners() {
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
+        // O botão agora recarrega os dados e aplica os filtros de data
         document.getElementById('reload-data-btn').addEventListener('click', () => loadAndRenderCharts(true));
     }
 
@@ -59,29 +60,105 @@ document.addEventListener("DOMContentLoaded", () => {
         selectedDate = null; // Reset date filter on any data reload
         selectedProduct = null; // Reset filter on any data reload
         if (forceReload) {
+            // Quando o usuário clica em "Aplicar Filtros", forçamos o recarregamento dos dados
+            // para garantir que estamos trabalhando com a versão mais recente do planejamento.
             sessionStorage.removeItem('analisesGraficasCache');
         }
         const success = await fetchAndSetLatestPlanningData(forceReload);
         if (success && dadosOriginais && dadosOriginais.programacao_data) {
-            renderAllCharts(dadosOriginais.programacao_data);
+            // Apenas define as datas padrão na primeira carga, quando os campos estão vazios.
+            if (!document.getElementById('start-date-filter').value && !document.getElementById('end-date-filter').value) {
+                setDefaultDateFilters(dadosOriginais.programacao_data);
+            }
+            const filteredData = filterDataByDateRange(dadosOriginais.programacao_data);
+            renderAllCharts(filteredData);
         } else {
             const containers = ['grafico-evolucao-total-container', 'grafico-produtos-container', 'grafico-evolucao-container', 'grafico-moldes-braco-container', 'grafico-bracos-container'];
             containers.forEach(id => {
                 const container = document.getElementById(id);
                 if (container) {
-                    container.innerHTML = '<p class="text-secondary text-center py-8">Nenhum dado de planejamento encontrado. Gere um novo na página de Planejamento.</p>';
+                    container.innerHTML = '<p class="text-secondary text-center py-8">Nenhum dado de planejamento encontrado. Gere um novo na página de Planejamento ou carregue um histórico.</p>';
                 }
             });
         }
         hideLoading();
     }
 
-    function renderAllCharts(programacaoData) {
-        createTotalEvolutionChart(programacaoData);
-        createProductChart(programacaoData); // Will use global state
-        createEvolutionChart(programacaoData); // Will use global state
-        createBranchChart(programacaoData);
-        createMoldChart(programacaoData);
+    // --- Date Filtering Logic ---
+
+    function parseDate(dateString) {
+        if (!dateString || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) return null;
+        const [day, month, year] = dateString.split('/');
+        // Cria a data em UTC para evitar problemas de fuso horário
+        return new Date(Date.UTC(year, month - 1, day));
+    }
+
+    function formatDateForInput(date) {
+        if (!date) return '';
+        // Converte a data UTC para o formato YYYY-MM-DD
+        return date.toISOString().split('T')[0];
+    }
+
+    function setDefaultDateFilters(data) {
+        const startDateInput = document.getElementById('start-date-filter');
+        const endDateInput = document.getElementById('end-date-filter');
+
+        if (!data || data.length === 0) {
+            startDateInput.value = '';
+            endDateInput.value = '';
+            return;
+        }
+
+        const allDates = data.map(item => parseDate(item["Data Prevista"])).filter(Boolean);
+        if (allDates.length === 0) return;
+
+        const minDate = new Date(Math.min.apply(null, allDates));
+        const startDate = minDate;
+        const endDate = new Date(startDate);
+        endDate.setUTCDate(startDate.getUTCDate() + 2); // Período padrão de 3 dias
+
+        startDateInput.value = formatDateForInput(startDate);
+        endDateInput.value = formatDateForInput(endDate);
+    }
+
+    function filterDataByDateRange(data) {
+        const startDateValue = document.getElementById('start-date-filter').value;
+        const endDateValue = document.getElementById('end-date-filter').value;
+
+        if (!startDateValue || !endDateValue) {
+            return data; // Nenhum filtro se as datas não estiverem definidas
+        }
+
+        const startParts = startDateValue.split('-').map(Number);
+        const endParts = endDateValue.split('-').map(Number);
+        const startDate = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+        const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+
+        return data.filter(item => {
+            const itemDate = parseDate(item["Data Prevista"]);
+            if (!itemDate) return false;
+            // Compara as datas ignorando o fuso horário
+            return itemDate.getTime() >= startDate.getTime() && itemDate.getTime() <= endDate.getTime();
+        });
+    }
+
+    function renderAllCharts(filteredData) {
+        if (!filteredData || filteredData.length === 0) {
+            const containers = ['grafico-evolucao-total-container', 'grafico-produtos-container', 'grafico-evolucao-container', 'grafico-moldes-braco-container', 'grafico-bracos-container'];
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) {
+                    container.innerHTML = '<p class="text-secondary text-center py-8">Nenhum dado encontrado para o período selecionado.</p>';
+                }
+            });
+            return;
+        }
+
+        createTotalEvolutionChart(filteredData);
+        createProductChart(filteredData); // Will use global state
+        createEvolutionChart(filteredData); // Will use global state
+        createBranchChart(filteredData);
+        createMoldChart(filteredData);
     }
 
     function destroyChart(chartId) {
@@ -91,12 +168,12 @@ document.addEventListener("DOMContentLoaded", () => {
         }
     }
 
-    function createTotalEvolutionChart(data) {
+    function createTotalEvolutionChart(filteredData) {
         destroyChart('graficoEvolucaoTotal');
         const ctx = document.getElementById('graficoEvolucaoTotal').getContext('2d');
         const stockOrderIds = ["9999997", "9999998", "9999999"]; // Define os IDs dos pedidos de estoque
 
-        const datas = [...new Set(data.map(item => item["Data Prevista"]))].sort((a, b) => {
+        const datas = [...new Set(filteredData.map(item => item["Data Prevista"]))].sort((a, b) => {
             const partsA = a.split('/');
             const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
             const partsB = b.split('/');
@@ -104,9 +181,9 @@ document.addEventListener("DOMContentLoaded", () => {
             return dateA - dateB;
         });
 
-        const quantidadesTotais = datas.map(d => data.filter(item => item["Data Prevista"] === d).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesTotais = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
         // Calcula a quantidade de itens para estoque em cada data
-        const quantidadesEstoque = datas.map(d => data.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesEstoque = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
 
         chartInstances['graficoEvolucaoTotal'] = new Chart(ctx, {
             type: 'line',
@@ -153,14 +230,14 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createProductChart(fullData) {
+    function createProductChart(dateFilteredData) {
         destroyChart('graficoProdutos');
         const container = document.getElementById('grafico-produtos-container');
         const canvas = document.getElementById('graficoProdutos');
         const ctx = canvas.getContext('2d');
 
         // Filter data if a date is selected
-        const dataForChart = selectedDate ? fullData.filter(item => item["Data Prevista"] === selectedDate) : fullData;
+        const dataForChart = selectedDate ? dateFilteredData.filter(item => item["Data Prevista"] === selectedDate) : dateFilteredData;
 
         // Update chart title
         const titleElement = container.previousElementSibling.querySelector('.chart-title-text');
@@ -226,8 +303,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         selectedDate = null;
 
                         // Re-render this chart to update colors and the evolution chart to filter data
-                        createProductChart(fullData); // Will use the new selectedProduct state
-                        createEvolutionChart(fullData); // Will use the new selectedProduct state
+                        createProductChart(dateFilteredData); // Will use the new selectedProduct state
+                        createEvolutionChart(dateFilteredData); // Will use the new selectedProduct state
                     }
                 },
                 scales: {
@@ -238,13 +315,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createEvolutionChart(data) { // The function now implicitly uses selectedProduct
+    function createEvolutionChart(dateFilteredData) { // The function now implicitly uses selectedProduct
         destroyChart('graficoEvolucao');
         const ctx = document.getElementById('graficoEvolucao').getContext('2d');
         const stockOrderIds = ["9999997", "9999998", "9999999"];
 
         // Filter data if a product is selected
-        const filteredData = selectedProduct ? data.filter(item => item.Produto === selectedProduct) : data;
+        const filteredDataForChart = selectedProduct ? dateFilteredData.filter(item => item.Produto === selectedProduct) : dateFilteredData;
 
         // Update chart title to reflect the filter
         const titleElement = document.querySelector('#grafico-evolucao-container').previousElementSibling.querySelector('.chart-title-text');
@@ -254,7 +331,7 @@ document.addEventListener("DOMContentLoaded", () => {
                 : 'Evolução por tipo';
         }
 
-        const datas = [...new Set(filteredData.map(item => item["Data Prevista"]))].sort((a, b) => {
+        const datas = [...new Set(filteredDataForChart.map(item => item["Data Prevista"]))].sort((a, b) => {
             const partsA = a.split('/');
             const dateA = new Date(partsA[2], partsA[1] - 1, partsA[0]);
             const partsB = b.split('/');
@@ -262,8 +339,8 @@ document.addEventListener("DOMContentLoaded", () => {
             return dateA - dateB;
         });
 
-        const quantidadesPedido = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d && !stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
-        const quantidadesEstoque = datas.map(d => filteredData.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesPedido = datas.map(d => filteredDataForChart.filter(item => item["Data Prevista"] === d && !stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
+        const quantidadesEstoque = datas.map(d => filteredDataForChart.filter(item => item["Data Prevista"] === d && stockOrderIds.includes(String(item.Pedido))).reduce((sum, item) => sum + item["Quantidade Programada"], 0));
 
         // Lógica de destaque para o ponto selecionado
         const pointRadii = datas.map(d => d === selectedDate ? 7 : 3);
@@ -309,8 +386,8 @@ document.addEventListener("DOMContentLoaded", () => {
                         selectedProduct = null;
 
                         // Re-render both charts with the new state
-                        createProductChart(data);
-                        createEvolutionChart(data);
+                        createProductChart(dateFilteredData);
+                        createEvolutionChart(dateFilteredData);
                     }
                 },
                 plugins: { legend: { labels: { color: 'white' } } },
@@ -322,13 +399,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createBranchChart(data) {
+    function createBranchChart(filteredData) {
         destroyChart('graficoBracos');
         const ctx = document.getElementById('graficoBracos').getContext('2d');
 
-        const bracos = [...new Set(data.map(item => item.Braço))].sort((a, b) => a - b);
+        const bracos = [...new Set(filteredData.map(item => item.Braço))].sort((a, b) => a - b);
         const quantidades = bracos.map(braco =>
-            data.filter(item => item.Braço === braco)
+            filteredData.filter(item => item.Braço === braco)
                 .reduce((sum, item) => sum + item["Quantidade Programada"], 0)
         );
 
@@ -348,13 +425,13 @@ document.addEventListener("DOMContentLoaded", () => {
         });
     }
 
-    function createMoldChart(data) {
+    function createMoldChart(filteredData) {
         destroyChart('graficoMoldesPorBraco');
         const ctx = document.getElementById('graficoMoldesPorBraco').getContext('2d');
 
-        const bracos = [...new Set(data.map(item => item.Braço))].sort((a, b) => a - b);
+        const bracos = [...new Set(filteredData.map(item => item.Braço))].sort((a, b) => a - b);
         const moldes = bracos.map(braco => {
-            const bracoData = data.filter(item => item.Braço === braco);
+            const bracoData = filteredData.filter(item => item.Braço === braco);
             // Agrupa por produto para contar moldes únicos por braço
             const moldesUnicos = bracoData.reduce((acc, item) => {
                 if (!acc[item.Produto]) {

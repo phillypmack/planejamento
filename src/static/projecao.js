@@ -21,7 +21,7 @@ document.addEventListener("DOMContentLoaded", () => {
         document.getElementById('sidebar-toggle').addEventListener('click', toggleSidebar);
 
         // Projeção
-        document.getElementById('load-latest-for-projecao-btn').addEventListener('click', () => loadProjecaoData(true));
+        document.getElementById('load-latest-for-projecao-btn').addEventListener('click', () => loadProjecaoData(true)); // Agora aplica filtros
 
         // Event delegation for expandable rows in projection details
         const projecaoTableContainer = document.getElementById('projecao-detalhes-container');
@@ -88,12 +88,80 @@ document.addEventListener("DOMContentLoaded", () => {
         }
         const success = await fetchAndSetLatestPlanningData(forceReload);
         if (success && dadosOriginais) {
+            setDefaultDateFilters();
             await loadProjecaoChart();
         } else if (!forceReload) {
             // Se não for reload forçado e não houver sucesso (nem cache), limpa os gráficos.
             loadProjecaoChart(); // Chama para limpar os gráficos e mostrar a mensagem de erro
         }
         hideLoading();
+    }
+
+    // --- Date Filtering Logic ---
+
+    function parseDate(dateString) {
+        if (!dateString || !/^\d{2}\/\d{2}\/\d{4}$/.test(dateString)) return null;
+        const [day, month, year] = dateString.split('/');
+        return new Date(Date.UTC(year, month - 1, day));
+    }
+
+    function formatDateForInput(date) {
+        if (!date) return '';
+        return date.toISOString().split('T')[0];
+    }
+
+    function setDefaultDateFilters() {
+        const startDateInput = document.getElementById('start-date-filter');
+        const endDateInput = document.getElementById('end-date-filter');
+
+        // Só define se os campos estiverem vazios
+        if (startDateInput.value || endDateInput.value) return;
+
+        // Usa os dados do planejamento geral para definir o intervalo inicial
+        const data = dadosOriginais ? dadosOriginais.programacao_data : [];
+        if (!data || data.length === 0) return;
+
+        const allDates = data.map(item => parseDate(item["Data Prevista"])).filter(Boolean);
+        if (allDates.length === 0) return;
+
+        const minDate = new Date(Math.min.apply(null, allDates));
+        const startDate = minDate;
+        const endDate = new Date(startDate);
+        endDate.setUTCDate(startDate.getUTCDate() + 2); // Período padrão de 3 dias
+
+        startDateInput.value = formatDateForInput(startDate);
+        endDateInput.value = formatDateForInput(endDate);
+    }
+
+    function filterProjectionData(projectionResult) {
+        const startDateValue = document.getElementById('start-date-filter').value;
+        const endDateValue = document.getElementById('end-date-filter').value;
+
+        if (!startDateValue || !endDateValue || !projectionResult || !projectionResult.labels) {
+            return projectionResult;
+        }
+
+        const startParts = startDateValue.split('-').map(Number);
+        const endParts = endDateValue.split('-').map(Number);
+        const startDate = new Date(Date.UTC(startParts[0], startParts[1] - 1, startParts[2]));
+        const endDate = new Date(Date.UTC(endParts[0], endParts[1] - 1, endParts[2]));
+
+        const filteredResult = { labels: [], data_quantidade: [], data_valor: [], data_itens: [], detalhes_por_dia: {} };
+
+        projectionResult.labels.forEach((label, index) => {
+            const itemDate = parseDate(label);
+            if (itemDate && itemDate.getTime() >= startDate.getTime() && itemDate.getTime() <= endDate.getTime()) {
+                filteredResult.labels.push(label);
+                filteredResult.data_quantidade.push(projectionResult.data_quantidade[index]);
+                filteredResult.data_valor.push(projectionResult.data_valor[index]);
+                filteredResult.data_itens.push(projectionResult.data_itens[index]);
+                if (projectionResult.detalhes_por_dia[label]) {
+                    filteredResult.detalhes_por_dia[label] = projectionResult.detalhes_por_dia[label];
+                }
+            }
+        });
+
+        return filteredResult;
     }
 
     async function loadProjecaoChart() {
@@ -109,7 +177,7 @@ document.addEventListener("DOMContentLoaded", () => {
             if (projecaoValorChartInstance) projecaoValorChartInstance.destroy();
             if (projecaoItensChartInstance) projecaoItensChartInstance.destroy();
 
-            const message = '<p class="text-secondary text-center py-8">Carregue ou gere um planejamento para ver a projeção.</p>';
+            const message = '<p class="text-secondary text-center py-8">Carregue um planejamento ou aplique filtros para ver a projeção.</p>';
             container.innerHTML = message;
             valorContainer.innerHTML = message;
             itensContainer.innerHTML = message;
@@ -125,15 +193,14 @@ document.addEventListener("DOMContentLoaded", () => {
         if (cachedChartData) {
             console.log("Carregando dados de projeção (gráficos) do cache da sessão.");
             const chartData = JSON.parse(cachedChartData);
+            const filteredData = filterProjectionData(chartData);
 
             // Detalhes não são cacheados para economizar espaço. Serão buscados sob demanda.
             // Definir projecaoDetalhes como null indica que eles precisam ser buscados.
             projecaoDetalhes = null;
 
             // Renderiza os gráficos com os dados do cache
-            createProjecaoQuantidadeChart(chartData);
-            createProjecaoItensChart(chartData);
-            createProjecaoValorChart(chartData); // O handler de clique buscará os detalhes se necessário
+            renderAllProjecaoCharts(filteredData);
             return;
         }
 
@@ -170,9 +237,8 @@ document.addEventListener("DOMContentLoaded", () => {
                 console.warn(`Não foi possível salvar os dados de projeção no cache (provavelmente devido ao tamanho): ${e.name}`);
             }
 
-            createProjecaoQuantidadeChart(result);
-            createProjecaoItensChart(result);
-            createProjecaoValorChart(result);
+            const filteredData = filterProjectionData(result);
+            renderAllProjecaoCharts(filteredData);
 
         } catch (error) {
             console.error('Erro ao carregar gráficos de projeção:', error);
@@ -184,6 +250,24 @@ document.addEventListener("DOMContentLoaded", () => {
             valorContainer.innerHTML = errorMessage;
             itensContainer.innerHTML = errorMessage;
         }
+    }
+
+    function renderAllProjecaoCharts(filteredData) {
+        if (!filteredData || !filteredData.labels || filteredData.labels.length === 0) {
+            const containers = ['projecao-chart-container', 'projecao-valor-chart-container', 'projecao-itens-chart-container'];
+            const detalhesContainer = document.getElementById('projecao-detalhes-container');
+            containers.forEach(id => {
+                const container = document.getElementById(id);
+                if (container) container.innerHTML = '<p class="text-secondary text-center py-8">Nenhum dado de projeção encontrado para o período selecionado.</p>';
+            });
+            if (detalhesContainer) detalhesContainer.classList.add('hidden');
+            return;
+        }
+
+        // O handler de clique no gráfico de valor buscará os detalhes se necessário
+        createProjecaoQuantidadeChart(filteredData);
+        createProjecaoItensChart(filteredData);
+        createProjecaoValorChart(filteredData);
     }
 
     function createProjecaoQuantidadeChart(data) {

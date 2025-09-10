@@ -190,26 +190,42 @@ document.addEventListener("DOMContentLoaded", () => {
         if (data.programacao_data && data.programacao_data.length > 0) {
             const stockOrderIds = ["9999997", "9999998", "9999999"];
             const stockTypeMap = { "9999997": "ESTOQUE MINI", "9999998": "ESTOQUE MED", "9999999": "ESTOQUE MAX" };
-            const stockProductionData = data.programacao_data.filter(item => stockOrderIds.includes(String(item.Pedido)));
 
-            if (stockProductionData.length > 0) {
-                const groupedByProduct = stockProductionData.reduce((acc, item) => {
-                    const produto = item.Produto;
-                    if (!acc[produto]) {
-                        acc[produto] = { totalQuantity: 0, stockTypes: new Set(), moundCountByArm: {} };
-                    }
-                    acc[produto].totalQuantity += item["Quantidade Programada"];
-                    acc[produto].stockTypes.add(stockTypeMap[String(item.Pedido)]);
-                    if (item.Braço && item["Quantidade de Moldes"] !== undefined) {
-                        acc[produto].moundCountByArm[item.Braço] = item["Quantidade de Moldes"];
-                    }
-                    return acc;
-                }, {});
+            // 1. Agrupa todos os itens de produção por produto (molde)
+            const productionByProduct = data.programacao_data.reduce((acc, item) => {
+                const produto = item.Produto;
+                if (!acc[produto]) {
+                    acc[produto] = [];
+                }
+                acc[produto].push(item);
+                return acc;
+            }, {});
 
-                const sortedStockProduction = Object.entries(groupedByProduct)
-                    .map(([produto, data]) => {
-                        const armDetails = Object.entries(data.moundCountByArm).map(([arm, count]) => `Braço ${arm} (${count})`).join(', ');
-                        return { produto, ...data, armDetails };
+            // 2. Filtra para encontrar produtos que produzem APENAS para estoque
+            const exclusiveStockProducts = {};
+            for (const produto in productionByProduct) {
+                const items = productionByProduct[produto];
+                const isOnlyForStock = items.every(item => stockOrderIds.includes(String(item.Pedido)));
+
+                if (isOnlyForStock) {
+                    // Se for exclusivo para estoque, agrega seus dados
+                    exclusiveStockProducts[produto] = items.reduce((acc, item) => {
+                        acc.totalQuantity += item["Quantidade Programada"];
+                        acc.stockTypes.add(stockTypeMap[String(item.Pedido)]);
+                        if (item.Braço && item["Quantidade de Moldes"] !== undefined) {
+                            acc.moundCountByArm[item.Braço] = item["Quantidade de Moldes"];
+                        }
+                        return acc;
+                    }, { totalQuantity: 0, stockTypes: new Set(), moundCountByArm: {} });
+                }
+            }
+
+            // 3. Renderiza a tabela com os produtos filtrados
+            if (Object.keys(exclusiveStockProducts).length > 0) {
+                const sortedStockProduction = Object.entries(exclusiveStockProducts)
+                    .map(([produto, productData]) => {
+                        const armDetails = Object.entries(productData.moundCountByArm).map(([arm, count]) => `Braço ${arm} (${count})`).join(', ');
+                        return { produto, ...productData, armDetails };
                     })
                     .sort((a, b) => b.totalQuantity - a.totalQuantity);
 
@@ -223,7 +239,7 @@ document.addEventListener("DOMContentLoaded", () => {
                     `;
                 });
             } else {
-                estoqueTable.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Nenhum molde está produzindo para estoque.</td></tr>';
+                estoqueTable.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Nenhum molde está produzindo exclusivamente para estoque.</td></tr>';
             }
         } else {
             estoqueTable.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-secondary">Nenhum dado de programação encontrado.</td></tr>';

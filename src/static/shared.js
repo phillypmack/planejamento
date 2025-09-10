@@ -63,24 +63,42 @@ function displayActivePlanBanner() {
 
         const banner = document.createElement('div');
         banner.id = 'active-plan-banner';
-        banner.className = 'fixed top-5 right-5 bg-yellow-400 border-l-4 border-yellow-600 text-black p-4 rounded-md shadow-lg z-50 w-full max-w-sm';
+        // Alterado p-4 para px-3 py-2 e adicionado flex items-center para compactar
+        banner.className = 'fixed top-5 right-0 bg-yellow-400 border-l-4 border-yellow-600 text-black px-3 py-2 rounded-l-md shadow-lg z-50 w-full max-w-sm transition-transform duration-500 ease-in-out flex items-center';
 
+        // Sanitize description to prevent issues with special characters in attributes
+        const sanitizedDescription = activePlanDescription.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+
+        // Estrutura interna simplificada para ser mais compacta e de linha única
         banner.innerHTML = `
-            <div class="flex items-start">
-                <div class="flex-shrink-0 pt-0.5">
-                    <i class="fas fa-history text-xl text-yellow-800"></i>
-                </div>
-                <div class="ml-3 w-0 flex-1">
-                    <p class="text-sm font-bold text-gray-900">Análise Histórica Ativa</p>
-                    <p class="mt-1 text-xs text-gray-800">${activePlanDescription}</p>
-                    <div class="mt-3">
-                        <button onclick="clearActivePlan()" class="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-1 px-3 rounded-full transition-colors duration-200">Voltar ao Planejamento Atual</button>
-                    </div>
-                </div>
+            <div class="flex-shrink-0">
+                <i class="fas fa-history text-xl text-yellow-800"></i>
+            </div>
+            <div class="ml-3 flex-1 min-w-0">
+                <p class="text-sm font-bold text-gray-900 truncate" title="${sanitizedDescription}">${sanitizedDescription}</p>
+            </div>
+            <div class="ml-4 flex-shrink-0">
+                <button onclick="clearActivePlan()" class="bg-yellow-600 hover:bg-yellow-700 text-white text-xs font-bold py-1 px-2 rounded-full transition-colors duration-200">Voltar</button>
             </div>
         `;
 
         targetElement.appendChild(banner);
+
+        const retractBanner = () => {
+            // Reduzido o tamanho da "aba" visível para 36px para ser mais discreto
+            banner.style.transform = 'translateX(calc(100% - 36px))';
+        };
+
+        const retractTimeout = setTimeout(retractBanner, 5000); // Recolhe após 5 segundos
+
+        // Expande o banner quando o mouse passa por cima
+        banner.addEventListener('mouseenter', () => {
+            clearTimeout(retractTimeout); // Cancela o recolhimento automático se o usuário interagir antes
+            banner.style.transform = 'translateX(0)';
+        });
+
+        // Recolhe o banner quando o mouse sai
+        banner.addEventListener('mouseleave', retractBanner);
     }
 }
 
